@@ -11,7 +11,7 @@ Working style: implement ONE task, report, user verifies in-game, then we move t
 - [x] A6. **FIX in-game selector highlight:** bottom ring now reactive via `usePlayerState(me, "car")` inside a `BoardSelector` child that only mounts when `me` exists (guards the `myPlayer()`-undefined window during Online/matchmaking, which previously crashed the tree → white screen + WebGL context loss).
 - [x] A7. **FIX swap freeze:** removed `key={carModel}` from `<RigidBody>` (no remount → no respawn/teleport, in-place swap) and replaced `colliders="hull"` with a fixed `<CuboidCollider args={[0.5,0.5,0.9]} position={[0,0.4,0]}>`. One static collider covers every dog+board combo, so adding dogs (Phase B) needs zero new collider logic. Tune size in A8. (pending in-game verify)
 - [x] A11. **FIX in-game white screen (`expected instance of _dA`):** root cause was a duplicate `three` bundled into `.vite/deps/@react-three_rapier.js` (Vite prebundle), breaking rapier's `instanceof Object3D` in `<RigidBody>`. `vite.config.js` now sets `resolve.dedupe: ['three','@react-three/fiber']` + `optimizeDeps.include` for the R3F stack; cleared `node_modules/.vite`. (pending in-game verify)
-- [ ] A8. Visual tune: dog facing/scale + per-board offsets (longboard/surfboard should be correct; skateboard/arcadia are best-guess)
+- [ ] A8. **Visual tune (Triplex):** dog facing/scale + per-board offsets. Now Triplex-editable — `Car.jsx` has literal transforms on the dog group and on each `<Board>` (longboard/surfboard likely correct; skateboard/arcadia best-guess). Open `Car.jsx` in Triplex and drag to tune; values write back into the JSX. (pending user tuning)
 - [ ] A9. Verify in-game: dog idles, is drivable, board swaps via the lobby selector, multiplayer sync still works
 - [x] A10. **Compress assets:** `gltfjsx --transform` (Draco + WebP + prune + resize) on dog + 4 boards → `*-transformed.glb` (dog 9.76→1.9 MB; boards 0.24–0.47 MB). Loaders use `useGLTF(path, true)` + `preload(path, true)` so drei wires the Draco decoder. Original uncompressed `.glb`s kept as fallback source (safe to delete once verified). Runtime Draco decoder loads from the gstatic CDN (drei default) — vendor it locally if you need offline/self-hosted.
 
@@ -24,9 +24,14 @@ Working style: implement ONE task, report, user verifies in-game, then we move t
 - [ ] B6. UI: second selector row for dogs (+ dog thumbnails)
 
 ## Phase C — Polish / Triplex
-- [ ] C1. Make the dog transform a literal prop in `Rider.jsx` (Triplex-ready); install Triplex for VS Code
+- [x] C1. Triplex-ready transforms: `Car.jsx` now renders the dog in a literal-transform `<group>` and passes literal `position`/`rotationY`/`scale` props to each `<Board>` (so per-board offsets are draggable). Triplex extension installed by user in their IDE.
 - [ ] C2. Visual tune pass with Triplex; fix `skateboard` / `arcadia_longboard` board offsets
 - [ ] C3. Rename identifiers (`car` -> `board`/`vehicle`) + swap `car_start` audio (later phase)
+
+## Cleanup / hardening (done)
+- Deps updated within compatible major line (drei 9.122 fixed lodash.pick high-severity CVE); majors held to avoid React19/R3F-v9 migration.
+- Removed unused uncompressed `dog.glb` + 4 board GLBs (archived in `_assets-to-import`); only `-transformed.glb` (Draco) remain.
+- Added top-level `ErrorBoundary` in `main.jsx` so a future render crash shows a fallback instead of a white screen.
 
 ## Risks / notes
 - Dog native ~2.78 tall, ~5.44 long (forward = Z); outer `scale={0.32}` in `CarController` -> ~0.9 tall, ~1.7 long.
