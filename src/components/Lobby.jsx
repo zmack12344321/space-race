@@ -14,7 +14,8 @@ import { useEffect, useRef, useState } from "react";
 import { MathUtils, Vector3 } from "three";
 import { degToRad } from "three/src/math/MathUtils";
 import { audios, playAudio } from "../utils/AudioManager";
-import { Car } from "./Car";
+import { Dog } from "./Dog";
+import { Board, BOARD_MAP } from "./Car";
 import { NameEditingAtom } from "./UI";
 const CAR_SPACING = 2.5;
 export const Lobby = () => {
@@ -260,9 +261,12 @@ const CarSwitcher = ({ player }) => {
     }, SWITCH_DURATION / 2);
   }
   return (
-    <group ref={container}>
-      <Car model={carModel} />
-    </group>
+    <>
+      <Dog />
+      <group ref={container}>
+        <Board model={BOARD_MAP[carModel] ?? "longboard"} />
+      </group>
+    </>
   );
 };
 

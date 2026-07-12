@@ -13,7 +13,7 @@ export const CAR_MODELS = [
 
 // Validation phase: keep the existing car slots/selector, but render a board
 // under the dog for each slot. Swap this out for real board names in Phase B.
-const BOARD_MAP = {
+export const BOARD_MAP = {
   sedanSports: "longboard",
   raceFuture: "skateboard",
   taxi: "surfboard_lucid_sn1",
@@ -35,7 +35,7 @@ const BOARD_CONFIG = {
   arcadia_longboard: { scale: 0.0515, rotationY: Math.PI / 2, position: [0, -25.7, 0] },
 };
 
-const Board = ({ model = "longboard", ...props }) => {
+export const Board = ({ model = "longboard", ...props }) => {
   const { scene } = useGLTF(`/models/boards/${model}.glb`);
   const cfg = BOARD_CONFIG[model] ?? BOARD_CONFIG.longboard;
   return (
