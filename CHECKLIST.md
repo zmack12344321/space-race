@@ -24,7 +24,7 @@ Working style: implement ONE task, report, user verifies in-game, then we move t
 - [ ] B6. UI: second selector row for dogs (+ dog thumbnails)
 
 ## Phase C — Polish / Triplex
-- [x] C1. Triplex-ready transforms: `Car.jsx` now renders the dog in a literal-transform `<group>` and passes literal `position`/`rotationY`/`scale` props to each `<Board>` (so per-board offsets are draggable). Triplex extension installed by user in their IDE.
+- [x] C1. Triplex setup: `Car.jsx` has literal transforms on the dog group + each `<Board>` (draggable in Triplex) and a `default` export so Triplex can open it directly. **Workflow: open `Car.jsx` (NOT `App.jsx`)** — Triplex edits one R3F component, it cannot run PlayroomKit multiplayer/physics, so it won't show the live game. Draco is vendored locally so models actually load in Triplex.
 - [ ] C2. Visual tune pass with Triplex; fix `skateboard` / `arcadia_longboard` board offsets
 - [ ] C3. Rename identifiers (`car` -> `board`/`vehicle`) + swap `car_start` audio (later phase)
 
@@ -32,6 +32,7 @@ Working style: implement ONE task, report, user verifies in-game, then we move t
 - Deps updated within compatible major line (drei 9.122 fixed lodash.pick high-severity CVE); majors held to avoid React19/R3F-v9 migration.
 - Removed unused uncompressed `dog.glb` + 4 board GLBs (archived in `_assets-to-import`); only `-transformed.glb` (Draco) remain.
 - Added top-level `ErrorBoundary` in `main.jsx` so a future render crash shows a fallback instead of a white screen.
+- **Vendored the Draco decoder** to `public/draco/` (copied from `three/examples/jsm/libs/draco/gltf`); `useGLTF` now loads it via `'/draco/'` instead of the Google CDN. Fixes the first-board-load hitch (CDN fetch) AND lets Triplex load the compressed models (CDN was blocked in its sandbox).
 
 ## Risks / notes
 - Dog native ~2.78 tall, ~5.44 long (forward = Z); outer `scale={0.32}` in `CarController` -> ~0.9 tall, ~1.7 long.

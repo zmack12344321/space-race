@@ -36,7 +36,7 @@ const BOARD_CONFIG = {
 
 export const Board = ({ model = "longboard", position, rotationY, scale, ...props }) => {
   const cfg = BOARD_CONFIG[model] ?? BOARD_CONFIG.longboard;
-  const { scene } = useGLTF(`/models/boards/${model}-transformed.glb`, true);
+  const { scene } = useGLTF(`/models/boards/${model}-transformed.glb`, '/draco/');
   return (
     <group scale={scale ?? cfg.scale} rotation-y={rotationY ?? cfg.rotationY} position={position ?? cfg.position}>
       <Clone object={scene} castShadow {...props} />
@@ -69,5 +69,9 @@ export const Car = ({ model = CAR_MODELS[0], ...props }) => {
 };
 
 Object.values(BOARD_MAP).forEach((model) => {
-  useGLTF.preload(`/models/boards/${model}-transformed.glb`, true);
+  useGLTF.preload(`/models/boards/${model}-transformed.glb`, '/draco/');
 });
+
+// Default export so Triplex can open this file directly as a preview target
+// (the dog + board rider) for visual transform tuning (A8).
+export default Car;
