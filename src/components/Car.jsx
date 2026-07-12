@@ -1,7 +1,5 @@
 import { Clone, useGLTF } from "@react-three/drei";
-import { useEffect } from "react";
-import { MeshStandardMaterial } from "three";
-import { degToRad } from "three/src/math/MathUtils";
+import { Dog } from "./Dog";
 
 export const CAR_MODELS = [
   "sedanSports",
@@ -13,49 +11,50 @@ export const CAR_MODELS = [
   "firetruck",
 ];
 
-export const Car = ({ model = CAR_MODELS[0], ...props }) => {
-  const { scene } = useGLTF(`/models/cars/${model}.glb`);
-  useEffect(() => {
-    scene.traverse((child) => {
-      if (child.isMesh) {
-        if (child.material.name === "window") {
-          child.material.transparent = true;
-          child.material.opacity = 0.5;
-        }
-        if (
-          child.material.name.startsWith("paint") ||
-          child.material.name === "wheelInside"
-        ) {
-          // child.material.rougness = 0.1;
-          // child.material.metalness = 1.0;
+// Validation phase: keep the existing car slots/selector, but render a board
+// under the dog for each slot. Swap this out for real board names in Phase B.
+const BOARD_MAP = {
+  sedanSports: "longboard",
+  raceFuture: "skateboard",
+  taxi: "surfboard_lucid_sn1",
+  ambulance: "arcadia_longboard",
+  police: "longboard",
+  truck: "skateboard",
+  firetruck: "arcadia_longboard",
+};
 
-          child.material = new MeshStandardMaterial({
-            color: child.material.color,
-            metalness: 0.5,
-            roughness: 0.1,
-          });
-        }
-        // console.log(child.material.name);
-        if (child.material.name.startsWith("light")) {
-          child.material.emissive = child.material.color;
-          child.material.emissiveIntensity = 4;
-          child.material.toneMapped = false;
-        }
-      }
-    });
-  }, [scene]);
+// Per-board normalize so each board is centered on X/Z, deck top at y=0, and
+// length ~4.95 native units (~1.6 in-scene after the 0.32 scale in
+// CarController). Computed from bounding-box measurements.
+// longboard/surfboard are correct; skateboard/arcadia are best-guess and need
+// a visual tune pass (see CHECKLIST step 5).
+const BOARD_CONFIG = {
+  longboard: { scale: 1.0, rotationY: 0, position: [0, -0.113, 0] },
+  surfboard_lucid_sn1: { scale: 1.125, rotationY: 0, position: [0, -0.558, 0] },
+  skateboard: { scale: 6.517, rotationY: Math.PI / 2, position: [0, -0.704, 0] },
+  arcadia_longboard: { scale: 0.0515, rotationY: Math.PI / 2, position: [0, -25.7, 0] },
+};
+
+const Board = ({ model = "longboard", ...props }) => {
+  const { scene } = useGLTF(`/models/boards/${model}.glb`);
+  const cfg = BOARD_CONFIG[model] ?? BOARD_CONFIG.longboard;
   return (
-    <group {...props}>
-      <Clone
-        object={scene}
-        rotation-y={degToRad(180)}
-        castShadow
-        // receiveShadow
-      />
+    <group scale={cfg.scale} rotation-y={cfg.rotationY} position={cfg.position}>
+      <Clone object={scene} castShadow {...props} />
     </group>
   );
 };
 
-CAR_MODELS.forEach((model) => {
-  useGLTF.preload(`/models/cars/${model}.glb`);
+export const Car = ({ model = CAR_MODELS[0], ...props }) => {
+  const board = BOARD_MAP[model] ?? "longboard";
+  return (
+    <group {...props}>
+      <Dog />
+      <Board model={board} />
+    </group>
+  );
+};
+
+Object.values(BOARD_MAP).forEach((model) => {
+  useGLTF.preload(`/models/boards/${model}.glb`);
 });
