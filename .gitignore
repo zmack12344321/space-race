@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Raw assets not needed in repo
+_assets-to-import/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
