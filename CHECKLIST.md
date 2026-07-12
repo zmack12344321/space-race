@@ -28,6 +28,21 @@ Working style: implement ONE task, report, user verifies in-game, then we move t
 - [ ] C2. Visual tune pass with Triplex; fix `skateboard` / `arcadia_longboard` board offsets
 - [ ] C3. Rename identifiers (`car` -> `board`/`vehicle`) + swap `car_start` audio (later phase)
 
+## Triplex single-scene cleanup + lobby dog-spin fix (C4)
+Goal: make `Car.jsx` the ONLY exported component Triplex opens (kill the 4-option
+Component Switcher clutter), fix the dog spinning on lobby swap (regression from
+wrapping full `<Car>` in the spinner), and keep production lean (only the selected
+board's GLB mounts). Triplex writes transforms into source; `npm run build` just
+bundles that source — no baking step.
+- [x] C4.1. New `src/components/boardConfig.js`: export `CAR_MODELS`, `BOARD_MAP`, `BOARD_MODELS` (moved out of `Car.jsx` so the scene file exports only a component)
+- [x] C4.2. `Board.jsx`: import `BOARD_MODELS` from `./boardConfig`; keep a SINGLE export (`Board` loader, no transform); drop `export default` + `export const BOARD_MODELS`
+- [x] C4.3. `Car.jsx`: remove `export default Car`, `export { Board, BOARD_MODELS }`, `export const CAR_MODELS`, `export const BOARD_MAP`. Single `export function Car` with props `preview=true`, `showDog=true`, `showBoard=true`. Each board group conditionally mounted (`preview || board===x ? <group>…</group> : null`) so production loads only the selected GLB
+- [x] C4.4. `UI.jsx`: import `CAR_MODELS` from `./boardConfig` (not `./Car`)
+- [x] C4.5. `Lobby.jsx` `CarSwitcher`: render `<Car showBoard={false}/>` (dog, static) + `<group ref={container}><Car showDog={false} preview={false}/></group>` (board, spins) — restores "dog still, board spins"
+- [x] C4.6. `CarController.jsx`: confirm `import { Car }` + `<Car … preview={false}/>` unchanged
+- [x] C4.7. `npm run build` succeeds
+- [ ] C4.8. In-game verify (user): lobby swap spins only the board; dog stays put; Triplex shows exactly one "Car" scene
+
 ## Cleanup / hardening (done)
 - Deps updated within compatible major line (drei 9.122 fixed lodash.pick high-severity CVE); majors held to avoid React19/R3F-v9 migration.
 - Removed unused uncompressed `dog.glb` + 4 board GLBs (archived in `_assets-to-import`); only `-transformed.glb` (Draco) remain.

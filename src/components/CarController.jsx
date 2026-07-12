@@ -114,7 +114,7 @@ export const CarController = ({ state, controls }) => {
             {state.state.name || state.state.profile.name}
           </h1>
         </Html>
-        <Car model={carModel} scale={0.32} />
+        <Car model={carModel} scale={0.32} preview={false} />
         {me?.id === state.id && (
           <PerspectiveCamera makeDefault position={[0, 1.5, -3]} near={1} />
         )}

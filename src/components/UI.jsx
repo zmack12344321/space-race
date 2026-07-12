@@ -8,7 +8,7 @@ import {
   usePlayersList,
 } from "playroomkit";
 import { useEffect, useState } from "react";
-import { CAR_MODELS } from "./Car";
+import { CAR_MODELS } from "./boardConfig";
 
 export const NameEditingAtom = atom(false);
 
