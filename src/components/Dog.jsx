@@ -14,7 +14,7 @@ import { SkeletonUtils } from 'three-stdlib'
 
 export function Dog(props) {
   const group = React.useRef()
-  const { scene, animations } = useGLTF('/models/dog.glb')
+  const { scene, animations } = useGLTF('/models/dog-transformed.glb', true)
   const clone = React.useMemo(() => SkeletonUtils.clone(scene), [scene])
   const { nodes, materials } = useGraph(clone)
   const { actions } = useAnimations(animations, group)
@@ -45,4 +45,4 @@ export function Dog(props) {
   )
 }
 
-useGLTF.preload('/models/dog.glb')
+useGLTF.preload('/models/dog-transformed.glb', true)

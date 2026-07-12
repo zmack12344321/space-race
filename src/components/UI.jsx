@@ -4,6 +4,7 @@ import {
   myPlayer,
   startMatchmaking,
   useMultiplayerState,
+  usePlayerState,
   usePlayersList,
 } from "playroomkit";
 import { useEffect, useState } from "react";
@@ -60,32 +61,7 @@ export const UI = () => {
         VROOM, VROOM
         <img src={`images/cars/${CAR_MODELS[loadingContent]}.png`} />
       </div>
-      <div
-        className={
-          "fixed z-10 bottom-4 left-1/2 flex flex-wrap justify-center items-center gap-2.5 -translate-x-1/2 w-full max-w-[75vw]"
-        }
-      >
-        {CAR_MODELS.map((model, idx) => (
-          <div
-            key={model}
-            className={`min-w-14 min-h-14 w-14 h-14 bg-white bg-opacity-50 backdrop-filter backdrop-blur-lg rounded-full shadow-md cursor-pointer
-            ${
-              me?.getState("car") === model ||
-              (!me?.getState("car") && idx === 0)
-                ? "ring-4 ring-blue-500"
-                : ""
-            }
-            `}
-            onClick={() => me?.setState("car", model)}
-          >
-            <img
-              src={`/images/cars/${model}.png`}
-              alt={model}
-              className="w-full h-full"
-            />
-          </div>
-        ))}
-      </div>
+      {me && <BoardSelector me={me} />}
       {gameState === "lobby" && isHost() && (
         <div className="fixed bottom-4 right-4 z-10 flex flex-col gap-2 items-end">
           <button
@@ -190,5 +166,37 @@ export const UI = () => {
         </div>
       )}
     </>
+  );
+};
+
+const BoardSelector = ({ me }) => {
+  const [car] = usePlayerState(me, "car");
+  return (
+    <div
+      className={
+        "fixed z-10 bottom-4 left-1/2 flex flex-wrap justify-center items-center gap-2.5 -translate-x-1/2 w-full max-w-[75vw]"
+      }
+    >
+      {CAR_MODELS.map((model, idx) => (
+        <div
+          key={model}
+          className={`min-w-14 min-h-14 w-14 h-14 bg-white bg-opacity-50 backdrop-filter backdrop-blur-lg rounded-full shadow-md cursor-pointer
+            ${
+              car === model ||
+              (!car && idx === 0)
+                ? "ring-4 ring-blue-500"
+                : ""
+            }
+            `}
+          onClick={() => me.setState("car", model)}
+        >
+          <img
+            src={`/images/cars/${model}.png`}
+            alt={model}
+            className="w-full h-full"
+          />
+        </div>
+      ))}
+    </div>
   );
 };

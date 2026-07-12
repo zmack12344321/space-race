@@ -1,6 +1,6 @@
 import { Html, PerspectiveCamera } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { RigidBody, euler, quat, vec3 } from "@react-three/rapier";
+import { RigidBody, CuboidCollider, euler, quat, vec3 } from "@react-three/rapier";
 import { useControls } from "leva";
 import { isHost, myPlayer, usePlayerState } from "playroomkit";
 import { useEffect, useRef } from "react";
@@ -99,8 +99,7 @@ export const CarController = ({ state, controls }) => {
       {/* <OrbitControls /> */}
       <RigidBody
         ref={rb}
-        colliders={"hull"}
-        key={carModel}
+        colliders={false}
         position={vec3(state.getState("pos"))}
         rotation={euler().setFromQuaternion(quat(state.getState("rot")))}
         onIntersectionEnter={(e) => {
@@ -109,6 +108,7 @@ export const CarController = ({ state, controls }) => {
           }
         }}
       >
+        <CuboidCollider args={[0.5, 0.5, 0.9]} position={[0, 0.4, 0]} />
         <Html position-y={0.55}>
           <h1 className="text-center whitespace-nowrap text-white drop-shadow-md  backdrop-filter bg-slate-300 bg-opacity-30 backdrop-blur-lg rounded-md py-2 px-4 text-xl  transform -translate-x-1/2">
             {state.state.name || state.state.profile.name}

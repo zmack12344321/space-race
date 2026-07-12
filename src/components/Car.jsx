@@ -36,7 +36,7 @@ const BOARD_CONFIG = {
 };
 
 export const Board = ({ model = "longboard", ...props }) => {
-  const { scene } = useGLTF(`/models/boards/${model}.glb`);
+  const { scene } = useGLTF(`/models/boards/${model}-transformed.glb`, true);
   const cfg = BOARD_CONFIG[model] ?? BOARD_CONFIG.longboard;
   return (
     <group scale={cfg.scale} rotation-y={cfg.rotationY} position={cfg.position}>
@@ -56,5 +56,5 @@ export const Car = ({ model = CAR_MODELS[0], ...props }) => {
 };
 
 Object.values(BOARD_MAP).forEach((model) => {
-  useGLTF.preload(`/models/boards/${model}.glb`);
+  useGLTF.preload(`/models/boards/${model}-transformed.glb`, true);
 });
