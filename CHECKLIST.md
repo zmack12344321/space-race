@@ -43,11 +43,43 @@ bundles that source — no baking step.
 - [x] C4.7. `npm run build` succeeds
 - [ ] C4.8. In-game verify (user): lobby swap spins only the board; dog stays put; Triplex shows exactly one "Car" scene
 
+## Garage live editing (C5) — REAL scene, not a sandbox
+Same pattern as the dog: the garage is ONE exported component (`Garage.jsx`)
+that production renders AND Triplex opens, so dragging anything writes to the
+source and ships. The trick: `Garage` takes `players`/`me` as props with mock
+defaults so Triplex can render it standalone (Lobby can't be opened directly
+because it needs a live PlayroomKit room).
+- [x] C5.1. `src/components/Garage.jsx` (new, single `export function Garage`): the REAL garage scene — garage model, 3 lights, platform, and per-player riders — every movable object wrapped in a named literal group. Owns `useGLTF(garage.glb)` + shadow traverse + animated-light `useFrame` + `CarSwitcher`. Accepts `players`/`me` props (mock defaults for Triplex).
+- [x] C5.2. `Lobby.jsx` slimmed to a camera/controls wrapper that renders `<Garage players={players} me={me} />`; removed scene/light/name-tag code (now in Garage).
+- [ ] C5.3. In-game + Triplex verify (user): open `Garage.jsx` in Triplex → single "Garage" scene; drag GarageModel/Lights/Platform/Rider → reflected live in the running garage + production build. NOTE: name tags (`<Text>`/`<Image>`) may not preview in Triplex if it blocks the Troika font CDN; they still ship in production. If Triplex can't open the scene because of that, add a `showUi` prop to suppress name tags while editing.
+
 ## Cleanup / hardening (done)
 - Deps updated within compatible major line (drei 9.122 fixed lodash.pick high-severity CVE); majors held to avoid React19/R3F-v9 migration.
 - Removed unused uncompressed `dog.glb` + 4 board GLBs (archived in `_assets-to-import`); only `-transformed.glb` (Draco) remain.
 - Added top-level `ErrorBoundary` in `main.jsx` so a future render crash shows a fallback instead of a white screen.
 - **Vendored the Draco decoder** to `public/draco/` (copied from `three/examples/jsm/libs/draco/gltf`); `useGLTF` now loads it via `'/draco/'` instead of the Google CDN. Fixes the first-board-load hitch (CDN fetch) AND lets Triplex load the compressed models (CDN was blocked in its sandbox).
+
+## Garage transform fix + Skatepark playground (C6)
+Goal: (1) make EVERY named object in the garage + rider draggable in Triplex by
+converting all shorthand transforms (`position-x/y/z`, `rotation-x`, `degToRad()`)
+into literal `position`/`rotation`/`scale` arrays (Triplex's move gizmo only binds
+to arrays). (2) Build a brand-new Triplex-ready "skatepark playground" level from
+basic shapes — its visual-only component opens standalone in Triplex, and `Game.jsx`
+wraps it in `<Physics>` + auto cuboid colliders, so dragging/scaling ramps updates
+physics with zero desync. NOT touching the buildings map.
+
+### Part A — Garage + rider fully draggable
+- [x] A1. `Garage.jsx`: drop `degToRad` import; convert all shorthand to literal arrays — outer `scale`, player group `position`/`scale`, `Billboard` `position`, `Text`/`Image` `position`, `Rider` `position`/`scale` (placement-only), me-light `position`, Platform group `rotation`/`position`, platform mesh `position`. (also Box `scale` -> array)
+- [x] A2. `Car.jsx`: board groups `rotation-y` -> `rotation={[0, y, 0]}` literal arrays.
+- [x] A3. `Board.jsx`: already array-form; no change.
+- [x] A4. `Garage.jsx`: added optional `showUi` prop (default `true`) to hide name tags while editing if Triplex blocks Troika CDN.
+- [ ] A5. In Triplex: open `Garage.jsx` + `Car.jsx` -> confirm every named object draggable + live. (build is green; needs user verify in Triplex)
+
+### Part B — Skatepark playground (replaces buildings map for now)
+- [x] B1. New `src/components/Skatepark.jsx`: single exported, visual-only component of named literal-transform groups — `Floor` (thin box), `Ramp1..3` (rotated boxes), `Rail`, `Wall`. No physics so Triplex opens it standalone.
+- [x] B2. `Game.jsx`: `LEVEL = "skatepark"` branch -> `<RigidBody type="fixed" colliders="cuboid"><Skatepark/></RigidBody>`; keep buildings branch (`GameArea` + road) for `LEVEL="buildings"`.
+- [ ] B3. `npm run dev`; drive in skatepark; confirm live edits + physics. (build green; needs user in-game verify)
+- [x] B4. CHECKLIST updated (this section).
 
 ## Risks / notes
 - Dog native ~2.78 tall, ~5.44 long (forward = Z); outer `scale={0.32}` in `CarController` -> ~0.9 tall, ~1.7 long.

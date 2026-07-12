@@ -29,22 +29,22 @@ export function Car({
         {showBoard && (
           <>
             {preview || board === "longboard" ? (
-              <group name="Longboard" scale={[1.42, 1.42, 1.42]} rotation-y={0} position={[0, 0.84, 0]}>
+              <group name="Longboard" scale={[1.42, 1.42, 1.42]} rotation={[0, 0, 0]} position={[0, 0.84, 0]}>
                 <Board model="longboard" />
               </group>
             ) : null}
             {preview || board === "skateboard" ? (
-              <group name="Skateboard" scale={[6.517, 6.517, 6.517]} rotation-y={Math.PI / 2} position={[0, -0.704, 0]}>
+               <group name="Skateboard" scale={[6.517, 6.517, 6.517]} rotation={[0, Math.PI / 2, 0]} position={[0, -0.704, 0]}>
                 <Board model="skateboard" />
               </group>
             ) : null}
             {preview || board === "surfboard_lucid_sn1" ? (
-              <group name="Surfboard" scale={[1.125, 1.125, 1.125]} rotation-y={0} position={[0, -0.558, 0]}>
+               <group name="Surfboard" scale={[1.125, 1.125, 1.125]} rotation={[0, 0, 0]} position={[0, -0.558, 0]}>
                 <Board model="surfboard_lucid_sn1" />
               </group>
             ) : null}
             {preview || board === "arcadia_longboard" ? (
-              <group name="ArcadiaLongboard" scale={[0.0515, 0.0515, 0.0515]} rotation-y={Math.PI / 2} position={[0, -25.7, 0]}>
+               <group name="ArcadiaLongboard" scale={[0.0515, 0.0515, 0.0515]} rotation={[0, Math.PI / 2, 0]} position={[0, -25.7, 0]}>
                 <Board model="arcadia_longboard" />
               </group>
             ) : null}

@@ -4,6 +4,11 @@ import { Joystick, onPlayerJoin } from "playroomkit";
 import { useEffect, useState } from "react";
 import { CarController } from "./CarController";
 import { GameArea } from "./GameArea";
+import { Skatepark } from "./Skatepark";
+
+// "skatepark" = new Triplex-ready basic-shape playground; "buildings" = the
+// original GLB map. Switch here (or later wire to a UI/state toggle).
+const LEVEL = "skatepark";
 
 export const Game = () => {
   const [players, setPlayers] = useState([]);
@@ -53,19 +58,27 @@ export const Game = () => {
         {players.map(({ state, controls }) => (
           <CarController key={state.id} state={state} controls={controls} />
         ))}
-        <RigidBody type="fixed" colliders="hull" rotation-y={Math.PI}>
-          <GameArea />
-        </RigidBody>
+        {LEVEL === "skatepark" ? (
+          <RigidBody type="fixed" colliders="cuboid">
+            <Skatepark />
+          </RigidBody>
+        ) : (
+          <>
+            <RigidBody type="fixed" colliders="hull" rotation={[0, Math.PI, 0]}>
+              <GameArea />
+            </RigidBody>
+            <Gltf src="/models/map_road.glb" />
+          </>
+        )}
         <RigidBody
           type="fixed"
           sensor
           colliders={false}
-          position-y={-5}
+          position={[0, -5, 0]}
           name="void"
         >
           <CuboidCollider args={[20, 3, 20]} />
         </RigidBody>
-        <Gltf src="/models/map_road.glb" />
       </Physics>
     </group>
   );
