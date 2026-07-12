@@ -2,7 +2,7 @@ import { Environment, Gltf, Lightformer } from "@react-three/drei";
 import { CuboidCollider, Physics, RigidBody } from "@react-three/rapier";
 import { Joystick, onPlayerJoin } from "playroomkit";
 import { useEffect, useState } from "react";
-import { CarController } from "./CarController";
+import { RiderController } from "./RiderController";
 import { GameArea } from "./GameArea";
 import { Skatepark } from "./Skatepark";
 
@@ -56,7 +56,7 @@ export const Game = () => {
       <directionalLight position={[10, 10, 10]} intensity={0.4} />
       <Physics>
         {players.map(({ state, controls }) => (
-          <CarController key={state.id} state={state} controls={controls} />
+          <RiderController key={state.id} state={state} controls={controls} />
         ))}
         {LEVEL === "skatepark" ? (
           <RigidBody type="fixed" colliders="cuboid">

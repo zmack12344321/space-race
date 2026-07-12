@@ -6,25 +6,14 @@ import { isHost, myPlayer, usePlayerState } from "playroomkit";
 import { useEffect, useRef } from "react";
 import { Vector3 } from "three";
 import { randInt } from "three/src/math/MathUtils";
-import { Car } from "./Car";
+import { Rider } from "./Rider";
+import { VEHICLE_SPEEDS } from "./vehicleConfig";
 
-const UP = new Vector3(0, 1, 0);
-
-const CAR_SPEEDS = {
-  sedanSports: 4,
-  raceFuture: 2,
-  taxi: 5.5,
-  ambulance: 8.5,
-  police: 5.5,
-  truck: 4.8,
-  firetruck: 10,
-};
-
-export const CarController = ({ state, controls }) => {
+export const RiderController = ({ state, controls }) => {
   const rb = useRef();
   const me = myPlayer();
-  const { rotationSpeed, carSpeed } = useControls({
-    carSpeed: {
+  const { rotationSpeed, rideSpeed } = useControls({
+    rideSpeed: {
       value: 3,
       min: 0,
       max: 10,
@@ -53,11 +42,10 @@ export const CarController = ({ state, controls }) => {
       const angle = controls.angle();
       const dir = angle > Math.PI / 2 ? 1 : -1;
       rotVel.y = -dir * Math.sin(angle) * rotationSpeed;
-      // console.log(radToDeg(angle));
       const impulse = vec3({
         x: 0,
         y: 0,
-        z: (CAR_SPEEDS[carModel] || carSpeed) * delta * dir,
+        z: (VEHICLE_SPEEDS[vehicleModel] || rideSpeed) * delta * dir,
       });
       const eulerRot = euler().setFromQuaternion(quat(rb.current.rotation()));
       impulse.applyEuler(eulerRot);
@@ -90,13 +78,12 @@ export const CarController = ({ state, controls }) => {
       rb.current.setAngvel({ x: 0, y: 0, z: 0 });
     }
   };
-  const [carModel] = usePlayerState(state, "car"); // show by default with state.getState("car") and non refresh
+  const [vehicleModel] = usePlayerState(state, "vehicle");
   useEffect(() => {
     respawn();
   }, []);
   return (
     <group>
-      {/* <OrbitControls /> */}
       <RigidBody
         ref={rb}
         colliders={false}
@@ -114,7 +101,7 @@ export const CarController = ({ state, controls }) => {
             {state.state.name || state.state.profile.name}
           </h1>
         </Html>
-        <Car model={carModel} scale={0.32} preview={false} />
+        <Rider model={vehicleModel} scale={0.32} preview={false} />
         {me?.id === state.id && (
           <PerspectiveCamera makeDefault position={[0, 1.5, -3]} near={1} />
         )}

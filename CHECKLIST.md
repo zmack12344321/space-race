@@ -81,6 +81,22 @@ physics with zero desync. NOT touching the buildings map.
 - [ ] B3. `npm run dev`; drive in skatepark; confirm live edits + physics. (build green; needs user in-game verify)
 - [x] B4. CHECKLIST updated (this section).
 
+## Naming cleanup + UFO / go-kart vehicles (C7)
+Goal: clear, future-proof vocabulary so "dog" / "player" / "vehicle" are unambiguous,
+and add the UFO + go-kart as rideable vehicles (not just boards).
+- [x] C7.1. Compressed `_assets-to-import/ufo_flying_saucer_spaceship_ovni.glb` (20.5MB -> 1.66MB) and `go-kart.glb` (2.56MB -> 176KB) via `npx gltfjsx --transform` (Draco + WebP); outputs `public/models/vehicles/*-transformed.glb`. `_assets-to-import` left untouched.
+- [x] C7.2. Renamed source for clear distinction: `Car.jsx` -> `Rider.jsx` (dog + vehicle), `Board.jsx` -> `Vehicle.jsx`, `CarController.jsx` -> `RiderController.jsx`, `boardConfig.js` -> `vehicleConfig.js`. `Rider` = the rider; `RiderController` = a networked player's controller.
+- [x] C7.3. Renamed state key `"car"` -> `"vehicle"` across `UI.jsx`, `Garage.jsx`, `RiderController.jsx` (mock + live reads/writes consistent). `CAR_MODELS` -> `VEHICLE_MODELS`, `BOARD_MAP` -> `VEHICLE_MAP`, `BOARD_MODELS` -> `VEHICLE_GLB_MODELS`, `CAR_SPEEDS` -> `VEHICLE_SPEEDS`, leva `carSpeed` -> `rideSpeed`, `CarSwitcher` -> `VehicleSwitcher`, audio `car_start` -> `ride_start` (also renamed `public/audios/car_start.mp3`).
+- [x] C7.4. `Rider.jsx` is now data-driven: mounts each vehicle via `VEHICLE_TRANSFORMS[glbId]` (scale/rotation/position) so boards + UFO + go-kart are all placed consistently and tunable in Triplex. Added `ufo` / `goKart` slots to `VEHICLE_MODELS` + `VEHICLE_MAP` + `VEHICLE_SPEEDS`.
+- [x] C7.5. Asset folders: `public/models/boards/` merged into `public/models/vehicles/`; `public/images/cars/` -> `public/images/vehicles/`; new `public/images/dogs/` (for future dog-swap thumbnails). Added placeholder thumbnails `ufo.png` / `goKart.png` (real art still TODO).
+- [ ] C7.6. In-game verify (user): select UFO / go-kart in the lobby; tune their `VEHICLE_TRANSFORMS` in Triplex. NOTE: ufo/go-kart transforms are best-guesses — dog is ~0.9 tall after the 0.32 controller scale; adjust `VEHICLE_TRANSFORMS` in `vehicleConfig.js` (or drag in Triplex) until they sit under the dog.
+- [ ] C7.7. (Separate) Collision: the single shared `<CuboidCollider args={[0.5,0.5,0.9]} position={[0,0.4,0]}>` in `RiderController.jsx` is too tall and dips below the floor -> "getting stuck". Boards have NO colliders; the surfboard theory is wrong. Fix = tune that one collider (smaller height, raise it). No Blender.
+
+## Controls / camera (future)
+- [ ] D1. **WASD controls**: drive with W/A/S/D in addition to the on-screen joystick. Wire keyboard state into `RiderController.jsx` impulse logic (PlayroomKit `controls` is joystick-only; read `window` keydown/keyup or a keyboard store and apply the same impulse/rotation math).
+- [ ] D2. **Click-drag camera (free-look)**: click + drag re-positions the chase camera and it stays there. While driving, click-drag = look around; on release, if still driving, snap back to the default chase position ("position 1"). Needs a camera controller in `Lobby.jsx`/`RiderController.jsx` (currently `CameraControls` auto-orbits; replace with manual offset that lerps back to default when driving & not dragging).
+- [ ] D3. **Mouse-wheel zoom**: adjust camera distance via wheel (clamp min/max).
+
 ## Risks / notes
 - Dog native ~2.78 tall, ~5.44 long (forward = Z); outer `scale={0.32}` in `CarController` -> ~0.9 tall, ~1.7 long.
 - `colliders="hull"` wraps the combined dog+board; try `cuboid` if driving feels off.

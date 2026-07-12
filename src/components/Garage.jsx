@@ -10,7 +10,7 @@ import { useAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { MathUtils } from "three";
 import { audios, playAudio } from "../utils/AudioManager";
-import { Car } from "./Car";
+import { Rider } from "./Rider";
 import { NameEditingAtom } from "./UI";
 
 const CAR_SPACING = 2.5;
@@ -19,12 +19,12 @@ const SWITCH_DURATION = 600;
 // Mock data so Triplex can render this scene standalone (no live PlayroomKit
 // room). The production Lobby passes the REAL players/me via props, so any
 // transform you drag here is written into this file and ships in the build —
-// exactly like Car.jsx. This is NOT a sandbox: Lobby renders <Garage/>.
+// exactly like Rider.jsx. This is NOT a sandbox: Lobby renders <Garage/>.
 const MOCK_PLAYERS = [
   {
     id: "me",
-    state: { name: "You", car: "sedanSports" },
-    getState: (key) => ({ name: "You", car: "sedanSports" })[key],
+    state: { name: "You", vehicle: "sedanSports" },
+    getState: (key) => ({ name: "You", vehicle: "sedanSports" })[key],
   },
 ];
 
@@ -145,7 +145,7 @@ export function Garage({
             position={[0, player.id === me?.id ? 0.15 : 0, 0]}
             scale={[0.46, 0.46, 0.46]}
           >
-            <CarSwitcher player={player} />
+            <VehicleSwitcher player={player} />
           </group>
 
           {player.id === me?.id && (
@@ -174,12 +174,12 @@ export function Garage({
   );
 }
 
-function CarSwitcher({ player }) {
-  const changedCarAt = useRef(0);
+function VehicleSwitcher({ player }) {
+  const changedVehicleAt = useRef(0);
   const container = useRef();
-  const [carModel, setCurrentCarModel] = useState(player.getState("car"));
+  const [vehicleModel, setCurrentVehicleModel] = useState(player.getState("vehicle"));
   useFrame(() => {
-    const timeSinceChange = Date.now() - changedCarAt.current;
+    const timeSinceChange = Date.now() - changedVehicleAt.current;
     if (timeSinceChange < SWITCH_DURATION / 2) {
       container.current.rotation.y += 2 * (timeSinceChange / SWITCH_DURATION / 2);
       container.current.scale.x =
@@ -204,19 +204,19 @@ function CarSwitcher({ player }) {
       );
     }
   }, []);
-  const newCar = player.getState("car");
-  if (newCar !== carModel) {
-    playAudio(audios.car_start);
-    changedCarAt.current = Date.now();
+  const newVehicle = player.getState("vehicle");
+  if (newVehicle !== vehicleModel) {
+    playAudio(audios.ride_start);
+    changedVehicleAt.current = Date.now();
     setTimeout(() => {
-      setCurrentCarModel(newCar);
+      setCurrentVehicleModel(newVehicle);
     }, SWITCH_DURATION / 2);
   }
   return (
     <>
-      <Car model={carModel} preview={false} showBoard={false} />
+      <Rider model={vehicleModel} preview={false} showVehicle={false} />
       <group ref={container}>
-        <Car model={carModel} preview={false} showDog={false} />
+        <Rider model={vehicleModel} preview={false} showDog={false} />
       </group>
     </>
   );

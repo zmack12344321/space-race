@@ -8,7 +8,7 @@ import {
   usePlayersList,
 } from "playroomkit";
 import { useEffect, useState } from "react";
-import { CAR_MODELS } from "./boardConfig";
+import { VEHICLE_MODELS } from "./vehicleConfig";
 
 export const NameEditingAtom = atom(false);
 
@@ -45,7 +45,7 @@ export const UI = () => {
   useEffect(() => {
     if (loadingSlide) {
       const interval = setInterval(() => {
-        setLoadingContent((prev) => (prev + 1) % CAR_MODELS.length);
+        setLoadingContent((prev) => (prev + 1) % VEHICLE_MODELS.length);
       }, 200);
       return () => clearInterval(interval);
     }
@@ -59,7 +59,7 @@ export const UI = () => {
       `}
       >
         VROOM, VROOM
-        <img src={`images/cars/${CAR_MODELS[loadingContent]}.png`} />
+        <img src={`images/vehicles/${VEHICLE_MODELS[loadingContent]}.png`} />
       </div>
       {me && <BoardSelector me={me} />}
       {gameState === "lobby" && isHost() && (
@@ -169,32 +169,47 @@ export const UI = () => {
   );
 };
 
+const VehicleThumb = ({ model }) => {
+  const [err, setErr] = useState(false);
+  if (err) {
+    return (
+      <span className="flex items-center justify-center w-full h-full text-[10px] leading-tight text-center text-slate-700 px-1">
+        {model}
+      </span>
+    );
+  }
+  return (
+    <img
+      src={`/images/vehicles/${model}.png`}
+      alt={model}
+      className="w-full h-full"
+      onError={() => setErr(true)}
+    />
+  );
+};
+
 const BoardSelector = ({ me }) => {
-  const [car] = usePlayerState(me, "car");
+  const [vehicle] = usePlayerState(me, "vehicle");
   return (
     <div
       className={
         "fixed z-10 bottom-4 left-1/2 flex flex-wrap justify-center items-center gap-2.5 -translate-x-1/2 w-full max-w-[75vw]"
       }
     >
-      {CAR_MODELS.map((model, idx) => (
+      {VEHICLE_MODELS.map((model, idx) => (
         <div
           key={model}
-          className={`min-w-14 min-h-14 w-14 h-14 bg-white bg-opacity-50 backdrop-filter backdrop-blur-lg rounded-full shadow-md cursor-pointer
+          className={`min-w-14 min-h-14 w-14 h-14 bg-white bg-opacity-50 backdrop-filter backdrop-blur-lg rounded-full shadow-md cursor-pointer overflow-hidden
             ${
-              car === model ||
-              (!car && idx === 0)
+              vehicle === model ||
+              (!vehicle && idx === 0)
                 ? "ring-4 ring-blue-500"
                 : ""
             }
             `}
-          onClick={() => me.setState("car", model)}
+          onClick={() => me.setState("vehicle", model)}
         >
-          <img
-            src={`/images/cars/${model}.png`}
-            alt={model}
-            className="w-full h-full"
-          />
+          <VehicleThumb model={model} />
         </div>
       ))}
     </div>

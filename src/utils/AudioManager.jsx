@@ -1,5 +1,5 @@
 export const audios = {
-  car_start: new Audio("/audios/car_start.mp3"),
+  ride_start: new Audio("/audios/ride_start.mp3"),
 };
 
 export const playAudio = (audio) => {
