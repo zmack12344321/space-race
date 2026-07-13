@@ -5,6 +5,13 @@ import { useEffect, useRef } from "react";
 import { Vector3 } from "three";
 import { Lunar1 } from "./Lunar1";
 
+const CAMERA_ACTION = {
+  ROTATE: 1,
+  DOLLY: 16,
+  TOUCH_ROTATE: 32,
+  TOUCH_DOLLY: 512,
+};
+
 export const Lobby = () => {
   const controls = useRef();
   const cameraReference = useRef();
@@ -27,11 +34,11 @@ export const Lobby = () => {
       viewport.getCurrentViewport(cameraReference.current, new Vector3(0, 0, 0))
         .width;
     controls.current.setLookAt(
-      9.5 * distFactor,
-      4.5 * distFactor,
-      17.5 * distFactor,
+      7.4 * distFactor,
+      3.1 * distFactor,
+      12.2 * distFactor,
       0,
-      0.3,
+      0.75,
       0,
       true
     );
@@ -51,18 +58,18 @@ export const Lobby = () => {
 
   return (
     <>
-      <PerspectiveCamera ref={cameraReference} position={[0, 1, 10]} />
+      <PerspectiveCamera ref={cameraReference} position={[0, 1, 10]} fov={40} />
       <CameraControls
         ref={controls}
         mouseButtons={{
-          left: 0,
+          left: CAMERA_ACTION.ROTATE,
           middle: 0,
           right: 0,
-          wheel: 16, // ACTION.ZOOM -> true zoom in/out with mousewheel
+          wheel: CAMERA_ACTION.DOLLY,
         }}
         touches={{
-          one: 0,
-          two: 0,
+          one: CAMERA_ACTION.TOUCH_ROTATE,
+          two: CAMERA_ACTION.TOUCH_DOLLY,
         }}
       />
       <Lunar1 players={players} me={me} />

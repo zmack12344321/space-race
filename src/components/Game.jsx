@@ -5,10 +5,12 @@ import { useEffect, useState } from "react";
 import { RiderController } from "./RiderController";
 import { GameArea } from "./GameArea";
 import { Skatepark } from "./Skatepark";
+import { LunarSky, LunarTerrain } from "./LunarTerrain";
+import { getLunarHeight } from "../utils/lunarHeightfield";
 
 // "skatepark" = new Triplex-ready basic-shape playground; "buildings" = the
 // original GLB map. Switch here (or later wire to a UI/state toggle).
-const LEVEL = "skatepark";
+const LEVEL = "lunar";
 
 export const Game = () => {
   const [players, setPlayers] = useState([]);
@@ -65,11 +67,18 @@ export const Game = () => {
         color="blue"
       />
       <directionalLight position={[10, 10, 10]} intensity={0.4} />
+      {LEVEL === "lunar" && <LunarSky />}
       <Physics>
+        {LEVEL === "lunar" && <LunarTerrain />}
         {players.map(({ state, controls }) => (
-          <RiderController key={state.id} state={state} controls={controls} />
+          <RiderController
+            key={state.id}
+            state={state}
+            controls={controls}
+            getGroundHeight={LEVEL === "lunar" ? getLunarHeight : undefined}
+          />
         ))}
-        {LEVEL === "skatepark" ? (
+        {LEVEL === "lunar" ? null : LEVEL === "skatepark" ? (
           <RigidBody type="fixed" colliders="cuboid">
             <Skatepark />
           </RigidBody>
@@ -81,15 +90,17 @@ export const Game = () => {
             <Gltf src="/models/map_road.glb" />
           </>
         )}
-        <RigidBody
-          type="fixed"
-          sensor
-          colliders={false}
-          position={[0, -5, 0]}
-          name="void"
-        >
-          <CuboidCollider args={[20, 3, 20]} />
-        </RigidBody>
+        {LEVEL !== "lunar" && (
+          <RigidBody
+            type="fixed"
+            sensor
+            colliders={false}
+            position={[0, -5, 0]}
+            name="void"
+          >
+            <CuboidCollider args={[20, 3, 20]} />
+          </RigidBody>
+        )}
       </Physics>
     </group>
   );

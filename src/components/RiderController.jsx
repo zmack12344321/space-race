@@ -9,7 +9,7 @@ import { clamp, randInt } from "three/src/math/MathUtils";
 import { Rider } from "./Rider";
 import { VEHICLE_SPEEDS } from "./vehicleConfig";
 
-export const RiderController = ({ state, controls }) => {
+export const RiderController = ({ state, controls, getGroundHeight }) => {
   const rb = useRef();
   const me = myPlayer();
   const { rotationSpeed, rideSpeed } = useControls({
@@ -30,6 +30,14 @@ export const RiderController = ({ state, controls }) => {
   const cameraRef = useRef();
   const zoom = useRef(1);
   const isLocal = me?.id === state.id;
+  const keys = useRef({
+    forward: false,
+    back: false,
+    left: false,
+    right: false,
+    boost: false,
+  });
+  const cameraOrbit = useRef({ yaw: 0, pitch: 0.36, dragging: false, lastX: 0, lastY: 0 });
 
   useEffect(() => {
     if (!isLocal) return;
@@ -40,20 +48,109 @@ export const RiderController = ({ state, controls }) => {
     return () => window.removeEventListener("wheel", onWheel);
   }, [isLocal]);
 
+  useEffect(() => {
+    if (!isLocal) return;
+
+    const orbit = cameraOrbit.current;
+    const onPointerDown = (event) => {
+      if (event.button !== 0 || event.target?.closest?.("button,input,textarea")) return;
+      orbit.dragging = true;
+      orbit.lastX = event.clientX;
+      orbit.lastY = event.clientY;
+    };
+    const onPointerMove = (event) => {
+      if (!orbit.dragging) return;
+      const dx = event.clientX - orbit.lastX;
+      const dy = event.clientY - orbit.lastY;
+      orbit.lastX = event.clientX;
+      orbit.lastY = event.clientY;
+      orbit.yaw -= dx * 0.006;
+      orbit.pitch = clamp(orbit.pitch + dy * 0.004, -0.2, 0.9);
+    };
+    const onPointerUp = () => {
+      orbit.dragging = false;
+    };
+
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+    };
+  }, [isLocal]);
+
+  useEffect(() => {
+    if (!isLocal) return;
+
+    const isTypingTarget = (target) =>
+      target?.tagName === "INPUT" ||
+      target?.tagName === "TEXTAREA" ||
+      target?.isContentEditable;
+
+    const setKey = (event, pressed) => {
+      if (isTypingTarget(event.target)) return;
+      const key = event.key.toLowerCase();
+      if (key === "w" || key === "arrowup") keys.current.forward = pressed;
+      if (key === "s" || key === "arrowdown") keys.current.back = pressed;
+      if (key === "a" || key === "arrowleft") keys.current.left = pressed;
+      if (key === "d" || key === "arrowright") keys.current.right = pressed;
+      if (key === "shift") keys.current.boost = pressed;
+    };
+
+    const onKeyDown = (event) => setKey(event, true);
+    const onKeyUp = (event) => setKey(event, false);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, [isLocal]);
+
   const lookAt = useRef(new Vector3(0, 0, 0));
   useFrame(({ camera }, delta) => {
     if (!rb.current) {
       return;
     }
+    const driveInput =
+      (keys.current.forward ? 1 : 0) - (keys.current.back ? 1 : 0);
+    const turnInput =
+      (keys.current.left ? 1 : 0) - (keys.current.right ? 1 : 0);
+    const boostInput = keys.current.boost && driveInput > 0;
+    const speedBoost = boostInput ? 1.75 : 1;
+
     if (isLocal) {
-      if (cameraRef.current) {
-        cameraRef.current.position.set(0, 1.5 * zoom.current, -3 * zoom.current);
+      const orbit = cameraOrbit.current;
+      const driving = driveInput || controls.isJoystickPressed();
+      if (driving && !orbit.dragging) {
+        orbit.yaw += (0 - orbit.yaw) * 0.08;
+        orbit.pitch += (0.36 - orbit.pitch) * 0.08;
       }
+
+      if (cameraRef.current) {
+        const distance = 3 * zoom.current;
+        const y = Math.sin(orbit.pitch) * distance + 0.55;
+        const flat = Math.cos(orbit.pitch) * distance;
+        const offset = new Vector3(
+          Math.sin(orbit.yaw) * flat,
+          y,
+          -Math.cos(orbit.yaw) * flat
+        );
+        cameraRef.current.position.copy(offset);
+        cameraRef.current.fov += ((boostInput ? 58 : 45) - cameraRef.current.fov) * 0.12;
+        cameraRef.current.updateProjectionMatrix();
+      }
+
       const targetLookAt = vec3(rb.current.translation());
       lookAt.current.lerp(targetLookAt, 0.1);
       camera.lookAt(lookAt.current);
     }
     const rotVel = rb.current.angvel();
+
     if (isLocal && controls.isJoystickPressed()) {
       const angle = controls.angle();
       const dir = angle > Math.PI / 2 ? 1 : -1;
@@ -67,10 +164,32 @@ export const RiderController = ({ state, controls }) => {
       impulse.applyEuler(eulerRot);
       rb.current.applyImpulse(impulse, true);
     }
+    if (isLocal && (driveInput || turnInput)) {
+      const dir = driveInput || 1;
+      rotVel.y = turnInput * dir * rotationSpeed;
+      if (driveInput) {
+        const impulse = vec3({
+          x: 0,
+          y: 0,
+          z:
+            (VEHICLE_SPEEDS[vehicleModel] || rideSpeed) *
+            speedBoost *
+            delta *
+            driveInput,
+        });
+        const eulerRot = euler().setFromQuaternion(quat(rb.current.rotation()));
+        impulse.applyEuler(eulerRot);
+        rb.current.applyImpulse(impulse, true);
+      }
+    }
     rb.current.setAngvel(rotVel, true);
     if (isLocal) {
       state.setState("pos", rb.current.translation());
       state.setState("rot", rb.current.rotation());
+      if (getGroundHeight) {
+        const pos = rb.current.translation();
+        if (pos.y < getGroundHeight(pos.x, pos.z) - 18) respawn();
+      }
     } else {
       const pos = state.getState("pos");
       if (pos) {
@@ -90,10 +209,12 @@ export const RiderController = ({ state, controls }) => {
   });
   const respawn = () => {
     if (isLocal) {
+      const x = randInt(-2, 2) * 4;
+      const z = randInt(-2, 2) * 4;
       rb.current.setTranslation({
-        x: randInt(-2, 2) * 4,
-        y: 2,
-        z: randInt(-2, 2) * 4,
+        x,
+        y: getGroundHeight ? getGroundHeight(x, z) + 2 : 2,
+        z,
       });
       rb.current.setLinvel({ x: 0, y: 0, z: 0 });
       rb.current.setRotation({ x: 0, y: 0, z: 0, w: 1 });
@@ -117,7 +238,7 @@ export const RiderController = ({ state, controls }) => {
           }
         }}
       >
-        <CuboidCollider args={[0.4, 0.6, 0.75]} position={[0, 0.6, 0]} />
+        <CuboidCollider args={[0.42, 0.35, 0.85]} position={[0, 0.35, 0]} />
         <Html position-y={0.85}>
           <h1 className="text-center whitespace-nowrap text-white drop-shadow-md  backdrop-filter bg-slate-300 bg-opacity-30 backdrop-blur-lg rounded-md py-2 px-4 text-xl  transform -translate-x-1/2">
             {state.state.name || state.state.profile.name}
@@ -125,7 +246,7 @@ export const RiderController = ({ state, controls }) => {
         </Html>
         <Rider model={vehicleModel} scale={0.6} preview={false} />
         {me?.id === state.id && (
-          <PerspectiveCamera ref={cameraRef} makeDefault position={[0, 1.5, -3]} near={1} />
+          <PerspectiveCamera ref={cameraRef} makeDefault position={[0, 1.5, -3]} fov={45} near={1} />
         )}
       </RigidBody>
     </group>
