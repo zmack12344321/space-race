@@ -79,11 +79,44 @@ function craters(x, z) {
   return h;
 }
 
+function megaCraterAt(x, z, cellX, cellZ) {
+  const cellSize = 420;
+  const cx = (cellX + hash2(cellX, cellZ, 301)) * cellSize;
+  const cz = (cellZ + hash2(cellX, cellZ, 302)) * cellSize;
+  const radius = 80 + hash2(cellX, cellZ, 303) * 170;
+  const depth = 8 + hash2(cellX, cellZ, 304) * 26;
+  const rim = 2 + hash2(cellX, cellZ, 305) * 8;
+  const dx = x - cx;
+  const dz = z - cz;
+  const d = Math.sqrt(dx * dx + dz * dz);
+
+  if (d > radius * 1.55) return 0;
+
+  const bowl = Math.max(0, 1 - d / radius);
+  const rimBand = Math.max(0, 1 - Math.abs(d - radius) / (radius * 0.22));
+  return -depth * Math.pow(bowl, 1.7) + rim * rimBand * rimBand;
+}
+
+function megaCraters(x, z) {
+  const cellSize = 420;
+  const cx = Math.floor(x / cellSize);
+  const cz = Math.floor(z / cellSize);
+  let h = 0;
+
+  for (let dz = -1; dz <= 1; dz++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      h += megaCraterAt(x, z, cx + dx, cz + dz);
+    }
+  }
+
+  return h;
+}
+
 export function getLunarHeight(x, z) {
-  const rolling = fbm(x, z, 180, 5, 1) * 2.2;
-  const dunes = fbm(x + 91.7, z - 43.2, 62, 4, 80) * 0.9;
+  const rolling = fbm(x, z, 260, 5, 1) * 5.5;
+  const dunes = fbm(x + 91.7, z - 43.2, 82, 4, 80) * 1.8;
   const regolith = fbm(x, z, 15, 3, 160) * 0.18;
-  return rolling + dunes + regolith + craters(x, z);
+  return rolling + dunes + regolith + craters(x, z) + megaCraters(x, z);
 }
 
 export function fillLunarHeightmap(zs, options, offsetX = 0, offsetZ = 0) {

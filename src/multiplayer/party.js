@@ -226,9 +226,8 @@ export class Joystick {
     this.buttons = new Set();
     this.cleanup = () => {};
 
-    if (state.id === localPlayer?.id) {
-      this.cleanup = mountLocalControls(this);
-    }
+    // Touch input is owned by ecctrl/input. This class remains as a small
+    // compatibility adapter for controller consumers and remote state reads.
   }
 
   isJoystickPressed() {
@@ -258,19 +257,21 @@ function publishControls(controls) {
 }
 
 function mountLocalControls(controls) {
+  if (!window.matchMedia("(pointer: coarse)").matches) {
+    return () => {};
+  }
+
   const root = document.createElement("div");
-  root.className = "fixed z-20 left-4 bottom-4 flex items-end gap-4 select-none";
+  root.className = "fixed z-20 left-4 bottom-4 select-none";
   root.innerHTML = `
     <div data-stick class="w-28 h-28 rounded-full bg-white/20 border border-white/40 backdrop-blur-md touch-none relative">
       <div data-nub class="absolute left-1/2 top-1/2 w-10 h-10 -ml-5 -mt-5 rounded-full bg-white/70"></div>
     </div>
-    <button data-respawn class="mb-2 px-4 py-3 rounded-full bg-white/80 text-black font-bold">Spawn</button>
   `;
   document.body.appendChild(root);
 
   const stick = root.querySelector("[data-stick]");
   const nub = root.querySelector("[data-nub]");
-  const respawn = root.querySelector("[data-respawn]");
   const radius = 56;
 
   const setFromPointer = (event) => {
@@ -298,22 +299,11 @@ function mountLocalControls(controls) {
   const onPointerMove = (event) => {
     if (controls.pressed) setFromPointer(event);
   };
-  const onRespawnDown = () => {
-    controls.buttons.add("Respawn");
-    publishControls(controls);
-  };
-  const onRespawnUp = () => {
-    controls.buttons.delete("Respawn");
-    publishControls(controls);
-  };
 
   stick.addEventListener("pointerdown", onPointerDown);
   stick.addEventListener("pointermove", onPointerMove);
   stick.addEventListener("pointerup", release);
   stick.addEventListener("pointercancel", release);
-  respawn.addEventListener("pointerdown", onRespawnDown);
-  respawn.addEventListener("pointerup", onRespawnUp);
-  respawn.addEventListener("pointercancel", onRespawnUp);
 
   return () => {
     root.remove();

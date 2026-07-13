@@ -1,5 +1,5 @@
 import { CameraControls, PerspectiveCamera } from "@react-three/drei";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useThree } from "@react-three/fiber";
 import { myPlayer, usePlayersList } from "../multiplayer/party";
 import { useEffect, useRef } from "react";
 import { Vector3 } from "three";
@@ -18,14 +18,6 @@ export const Lobby = () => {
   const me = myPlayer();
   const players = usePlayersList(true);
   players.sort((a, b) => a.id.localeCompare(b.id));
-
-  useFrame(({ clock }) => {
-    if (!controls.current) return;
-    controls.current.camera.position.x +=
-      Math.cos(clock.getElapsedTime() * 0.5) * 0.25;
-    controls.current.camera.position.y +=
-      Math.sin(clock.getElapsedTime() * 1) * 0.125;
-  });
 
   const viewport = useThree((state) => state.viewport);
   const adjustCamera = () => {
@@ -61,6 +53,8 @@ export const Lobby = () => {
       <PerspectiveCamera ref={cameraReference} position={[0, 1, 10]} fov={40} />
       <CameraControls
         ref={controls}
+        minDistance={5}
+        maxDistance={55}
         mouseButtons={{
           left: CAMERA_ACTION.ROTATE,
           middle: 0,

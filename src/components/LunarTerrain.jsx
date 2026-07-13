@@ -1,16 +1,15 @@
-import { AdaptiveDpr, Environment, PerformanceMonitor, Preload, Stars, useTexture } from "@react-three/drei";
-import { RigidBody } from "@react-three/rapier";
+import { AdaptiveDpr, PerformanceMonitor, Preload, useTexture } from "@react-three/drei";
+import { MeshCollider, RigidBody } from "@react-three/rapier";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import Terrain, { TerrainNS } from "three.terrain.js";
 import { createMoonGroundTextures } from "../utils/moonGround";
-import { fillLunarHeightmap } from "../utils/lunarHeightfield";
-import { DistantMountains } from "./DistantMountains";
+import { getLunarHeight } from "../utils/lunarHeightfield";
+import { SpaceBackdrop } from "./SpaceBackdrop";
 
 const CHUNK_SIZE = 64;
 const DEFAULT_VISUAL_RADIUS = 4;
-const PHYSICS_RADIUS = 1;
+const PHYSICS_RADIUS = 3;
 
 function chunkKey(x, z) {
   return `${x}:${z}`;
@@ -22,9 +21,8 @@ function chunkRing(x, z, cx, cz) {
 
 function segmentsForRing(ring, quality) {
   const q = quality < 0.45 ? 0.75 : 1;
-  if (ring <= 1) return Math.round(96 * q);
-  if (ring === 2) return Math.round(48 * q);
-  return Math.round(20 * q);
+  if (ring <= 2) return Math.round(80 * q);
+  return Math.round(40 * q);
 }
 
 function LunarTerrainChunk({ chunkX, chunkZ, centerX, centerZ, material, quality }) {
@@ -35,42 +33,44 @@ function LunarTerrainChunk({ chunkX, chunkZ, centerX, centerZ, material, quality
   const worldZ = chunkZ * CHUNK_SIZE;
 
   const terrain = useMemo(() => {
-    const object = Terrain({
-      easing: TerrainNS.Linear,
-      heightmap: (zs, options) => fillLunarHeightmap(zs, options, worldX, worldZ),
-      material,
-      maxHeight: 6,
-      minHeight: -6,
-      stretch: false,
-      xSegments: segments,
-      xSize: CHUNK_SIZE,
-      ySegments: segments,
-      ySize: CHUNK_SIZE,
-    });
+    const geometry = new THREE.PlaneGeometry(
+      CHUNK_SIZE,
+      CHUNK_SIZE,
+      segments,
+      segments
+    );
+    const positions = geometry.attributes.position.array;
 
-    object.position.set(worldX, 0, worldZ);
-    object.traverse((child) => {
-      if (child.isMesh) {
-        child.receiveShadow = true;
-        child.frustumCulled = true;
-      }
-    });
-    return object;
+    for (let i = 0; i < positions.length; i += 3) {
+      const localX = positions[i];
+      const localY = positions[i + 1];
+      positions[i + 2] = getLunarHeight(worldX + localX, worldZ - localY);
+    }
+
+    geometry.computeVertexNormals();
+    geometry.computeBoundingSphere();
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(worldX, 0, worldZ);
+    mesh.receiveShadow = true;
+    mesh.frustumCulled = true;
+    return mesh;
   }, [material, segments, worldX, worldZ]);
 
   useEffect(
     () => () => {
-      terrain.traverse((child) => {
-        if (child.isMesh) child.geometry?.dispose();
-      });
+      terrain.geometry?.dispose();
     },
     [terrain]
   );
 
   if (hasPhysics) {
     return (
-      <RigidBody type="fixed" colliders="trimesh">
-        <primitive object={terrain} />
+      <RigidBody type="fixed" colliders={false}>
+        <MeshCollider type="trimesh">
+          <primitive object={terrain} />
+        </MeshCollider>
       </RigidBody>
     );
   }
@@ -91,9 +91,7 @@ export function LunarSky() {
 
   return (
     <>
-      <Environment files="/NightSkyHDRI002_2K_HDR.exr" environmentIntensity={0} />
-      <Stars radius={900} depth={400} count={9000} factor={4} saturation={0} fade speed={0.25} />
-      <DistantMountains />
+      <SpaceBackdrop />
       <AdaptiveDpr pixelated />
       <Preload all />
     </>
@@ -102,6 +100,7 @@ export function LunarSky() {
 
 export function LunarTerrain() {
   const camera = useThree((state) => state.camera);
+  const cameraWorldPosition = useRef(new THREE.Vector3());
   const [quality, setQuality] = useState(1);
   const [center, setCenter] = useState(() => ({
     x: Math.floor(camera.position.x / CHUNK_SIZE),
@@ -110,8 +109,9 @@ export function LunarTerrain() {
   const centerRef = useRef(center);
 
   useFrame(() => {
-    const x = Math.floor(camera.position.x / CHUNK_SIZE);
-    const z = Math.floor(camera.position.z / CHUNK_SIZE);
+    camera.getWorldPosition(cameraWorldPosition.current);
+    const x = Math.floor(cameraWorldPosition.current.x / CHUNK_SIZE);
+    const z = Math.floor(cameraWorldPosition.current.z / CHUNK_SIZE);
     if (x !== centerRef.current.x || z !== centerRef.current.z) {
       centerRef.current = { x, z };
       setCenter(centerRef.current);
@@ -170,6 +170,10 @@ export function LunarTerrain() {
     <>
       <PerformanceMonitor onChange={({ factor }) => setQuality(factor)} />
       <group name="InfiniteLunarTerrain">
+        <mesh name="TerrainUnderlay" rotation={[-Math.PI / 2, 0, 0]} position={[0, -44, 0]}>
+          <planeGeometry args={[2000, 2000, 1, 1]} />
+          <meshStandardMaterial color="#1d2433" roughness={1} />
+        </mesh>
         {chunks.map((chunk) => (
           <LunarTerrainChunk
             key={chunk.key}

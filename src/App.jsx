@@ -1,6 +1,4 @@
 import { Canvas } from "@react-three/fiber";
-import { Bloom, EffectComposer } from "@react-three/postprocessing";
-import { Leva } from "leva";
 import * as THREE from "three";
 import { Experience } from "./components/Experience";
 import { UI } from "./components/UI";
@@ -9,14 +7,13 @@ function App() {
   return (
     <>
       <UI />
-      <Leva hidden />
       <Canvas
         shadows
         dpr={[1, 2]}
         gl={{
           antialias: true,
           toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 0.8,
+          toneMappingExposure: 0.65,
         }}
         onCreated={({ gl }) => {
           gl.outputColorSpace = THREE.SRGBColorSpace;
@@ -25,9 +22,6 @@ function App() {
       >
         <color attach="background" args={["#02040a"]} />
         <Experience />
-        <EffectComposer>
-          <Bloom luminanceThreshold={1} intensity={1.22} />
-        </EffectComposer>
       </Canvas>
     </>
   );

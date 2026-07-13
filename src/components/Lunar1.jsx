@@ -1,8 +1,6 @@
 import {
   Billboard,
-  Environment,
   Image,
-  Stars,
   Text,
   useTexture,
 } from "@react-three/drei";
@@ -20,7 +18,9 @@ import {
 import { audios, playAudio } from "../utils/AudioManager";
 import { createMoonGroundTextures } from "../utils/moonGround";
 import { DistantMountains } from "./DistantMountains";
+import { SpaceBackdrop } from "./SpaceBackdrop";
 import { Rider } from "./Rider";
+import { Rock, ROCK_BASE_SCALE } from "./rocks/Rock";
 import { NameEditingAtom } from "./UI";
 
 const CAR_SPACING = 2.5;
@@ -137,20 +137,13 @@ export function Lunar1(props) {
 
   return (
     <group>
-      {/* Night-sky HDRI — shown as the background at a low intensity so it
-          stays a deep, un-washed horizon. IBL is kept very low so the scene
-          remains a spooky lunar night rather than a bright studio. These
-          props require three >= 0.163 (now installed) to take effect. */}
-      <Environment
-        files="/NightSkyHDRI002_2K_HDR.exr"
-        environmentIntensity={0}
-      />
+      <SpaceBackdrop />
 
       {/* Dim, cool "moonlight" key light — the only shadow caster. */}
       <directionalLight
         name="Moonlight"
         position={[6, 10, 4]}
-        intensity={1.2}
+        intensity={1.0}
         color="#aebfff"
         castShadow
         shadow-bias={-0.0005}
@@ -167,7 +160,7 @@ export function Lunar1(props) {
           point lights were removed). Kept moderate so it stays a moody lunar
           night — Triplex adds its own editor lights, so always sanity-check
           brightness in the running app, not just the editor. */}
-      <ambientLight name="Fill" intensity={0.5} color="#7f8bad" />
+      <ambientLight name="Fill" intensity={0.24} color="#7f8bad" />
 
 
       {/* Lunar ground — blended moon_01/moon_02 albedo (recolored to lunar
@@ -208,18 +201,20 @@ export function Lunar1(props) {
           into the far distance so they read like 100 miles out. */}
       <DistantMountains />
 
-      {/* Crisp, GPU-rendered starfield layered over the dimmed HDRI. Shader
-          points stay razor-sharp at any resolution (no pixelation like the
-          2K equirect), giving the space lobby a high-quality deep-space sky. */}
-      <Stars
-        radius={900}
-        depth={400}
-        count={9000}
-        factor={4}
-        saturation={0}
-        fade
-        speed={0.4}
-      />
+      {/* Scattered lunar rocks in a ring around the dog. Each is its OWN
+          explicit node (Rock01–Rock07) so Triplex can select/drag/scale them
+          individually — do NOT render them via .map(), Triplex collapses mapped
+          children into the parent group. `scale` = ×dog (ROCK_BASE_SCALE baked
+          in), 1–2 ≈ dog size. Originals: _assets-to-import; these are draco. */}
+      <group name="Rocks">
+        <Rock model={1} name="Rock01" position={[16.85, 0, -12.73]} rotation={[0, 0, 0]} scale={76} />
+        <Rock model={2} name="Rock02" position={[-57.57, 0, -65.27]} rotation={[0, -0.8976, 0]} scale={88.16} />
+        <Rock model={3} name="Rock03" position={[-9.85, 0, 6.97]} rotation={[0, -1.7952, 0]} scale={100.32} />
+        <Rock model={4} name="Rock04" position={[-16.61, 0, -62.6]} rotation={[0, -2.6928, 0]} scale={112.48} />
+        <Rock model={5} name="Rock05" position={[18.19, 0, -35.97]} rotation={[0, -3.5904, 0]} scale={124.64} />
+        <Rock model={6} name="Rock06" position={[-42, 0, -12.4]} rotation={[0, -4.488, 0]} scale={136.8} />
+        <Rock model={7} name="Rock07" position={[-65.95, 0, -31.07]} rotation={[0, -5.3856, 0]} scale={148.96} />
+      </group>
 
       {players.map((player, idx) => (
         <group

@@ -1,16 +1,30 @@
 import { Environment, Gltf, Lightformer } from "@react-three/drei";
 import { CuboidCollider, Physics, RigidBody } from "@react-three/rapier";
+import { useCustomGravity } from "ecctrl/gravity";
 import { Joystick, onPlayerJoin } from "../multiplayer/party";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Vector3 } from "three";
 import { RiderController } from "./RiderController";
 import { GameArea } from "./GameArea";
 import { Skatepark } from "./Skatepark";
 import { LunarSky, LunarTerrain } from "./LunarTerrain";
+import { LunarRocks } from "./LunarRocks";
 import { getLunarHeight } from "../utils/lunarHeightfield";
 
 // "skatepark" = new Triplex-ready basic-shape playground; "buildings" = the
 // original GLB map. Switch here (or later wire to a UI/state toggle).
 const LEVEL = "lunar";
+
+function GravitySetup() {
+  const setGravityField = useCustomGravity((state) => state.setGravityField);
+  const gravity = useRef(new Vector3(0, -9.81, 0));
+
+  useEffect(() => {
+    setGravityField(() => gravity.current);
+  }, [setGravityField]);
+
+  return null;
+}
 
 export const Game = () => {
   const [players, setPlayers] = useState([]);
@@ -68,8 +82,10 @@ export const Game = () => {
       />
       <directionalLight position={[10, 10, 10]} intensity={0.4} />
       {LEVEL === "lunar" && <LunarSky />}
-      <Physics>
+      <Physics gravity={[0, 0, 0]}>
+        <GravitySetup />
         {LEVEL === "lunar" && <LunarTerrain />}
+        {LEVEL === "lunar" && <LunarRocks />}
         {players.map(({ state, controls }) => (
           <RiderController
             key={state.id}
