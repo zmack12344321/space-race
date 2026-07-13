@@ -1,6 +1,6 @@
 import { Environment, Gltf, Lightformer } from "@react-three/drei";
 import { CuboidCollider, Physics, RigidBody } from "@react-three/rapier";
-import { Joystick, onPlayerJoin } from "playroomkit";
+import { Joystick, onPlayerJoin } from "../multiplayer/party";
 import { useEffect, useState } from "react";
 import { RiderController } from "./RiderController";
 import { GameArea } from "./GameArea";
@@ -14,17 +14,28 @@ export const Game = () => {
   const [players, setPlayers] = useState([]);
 
   useEffect(() => {
-    onPlayerJoin((state) => {
+    const activeControls = new Map();
+    const unsubscribe = onPlayerJoin((state) => {
       const controls = new Joystick(state, {
         type: "angular",
         buttons: [{ id: "Respawn", label: "Spawn" }],
       });
+      activeControls.set(state.id, controls);
       const newPlayer = { state, controls };
-      setPlayers((players) => [...players, newPlayer]);
+      setPlayers((players) => [
+        ...players.filter((p) => p.state.id !== state.id),
+        newPlayer,
+      ]);
       state.onQuit(() => {
+        controls.cleanup?.();
+        activeControls.delete(state.id);
         setPlayers((players) => players.filter((p) => p.state.id !== state.id));
       });
     });
+    return () => {
+      unsubscribe();
+      activeControls.forEach((controls) => controls.cleanup?.());
+    };
   }, []);
 
   return (

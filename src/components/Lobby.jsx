@@ -1,9 +1,9 @@
 import { CameraControls, PerspectiveCamera } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
-import { myPlayer, usePlayersList } from "playroomkit";
+import { myPlayer, usePlayersList } from "../multiplayer/party";
 import { useEffect, useRef } from "react";
 import { Vector3 } from "three";
-import { Garage } from "./Garage";
+import { Lunar1 } from "./Lunar1";
 
 export const Lobby = () => {
   const controls = useRef();
@@ -27,11 +27,11 @@ export const Lobby = () => {
       viewport.getCurrentViewport(cameraReference.current, new Vector3(0, 0, 0))
         .width;
     controls.current.setLookAt(
-      4.2 * distFactor,
-      2 * distFactor,
-      7.5 * distFactor,
+      9.5 * distFactor,
+      4.5 * distFactor,
+      17.5 * distFactor,
       0,
-      0.15,
+      0.3,
       0,
       true
     );
@@ -43,7 +43,6 @@ export const Lobby = () => {
 
   useEffect(() => {
     const onResize = () => {
-      console.log("on resize");
       adjustCamera();
     };
     window.addEventListener("resize", onResize);
@@ -59,14 +58,14 @@ export const Lobby = () => {
           left: 0,
           middle: 0,
           right: 0,
-          wheel: 0,
+          wheel: 16, // ACTION.ZOOM -> true zoom in/out with mousewheel
         }}
         touches={{
           one: 0,
           two: 0,
         }}
       />
-      <Garage players={players} me={me} />
+      <Lunar1 players={players} me={me} />
     </>
   );
 };

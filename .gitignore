@@ -25,3 +25,5 @@ _assets-to-import/
 *.njsproj
 *.sln
 *.sw?
+
+.vercel

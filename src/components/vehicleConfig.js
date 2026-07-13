@@ -30,7 +30,7 @@ export const VEHICLE_MAP = {
   police: "longboard",
   truck: "skateboard",
   firetruck: "arcadia_longboard",
-  ufo: "ufo_flying_saucer_spaceship_ovni",
+  ufo: "ufo",
   goKart: "go-kart",
 };
 
@@ -39,21 +39,9 @@ export const VEHICLE_GLB_MODELS = [
   "skateboard",
   "surfboard_lucid_sn1",
   "arcadia_longboard",
-  "ufo_flying_saucer_spaceship_ovni",
+  "ufo",
   "go-kart",
 ];
-
-// Placement of each vehicle GLB relative to the dog (Rider.jsx outer group is
-// scaled 0.32 by the controller). Board values are tuning from earlier passes;
-// ufo/go-kart are best-guesses — tune live in Triplex.
-export const VEHICLE_TRANSFORMS = {
-  longboard: { scale: [1.42, 1.42, 1.42], rotation: [0, 0, 0], position: [0, 0.84, 0] },
-  skateboard: { scale: [6.517, 6.517, 6.517], rotation: [0, Math.PI / 2, 0], position: [0, -0.704, 0] },
-  surfboard_lucid_sn1: { scale: [1.125, 1.125, 1.125], rotation: [0, 0, 0], position: [0, -0.558, 0] },
-  arcadia_longboard: { scale: [0.0515, 0.0515, 0.0515], rotation: [0, Math.PI / 2, 0], position: [0, -25.7, 0] },
-  ufo_flying_saucer_spaceship_ovni: { scale: [0.012, 0.012, 0.012], rotation: [0, 0, 0], position: [0, 0.7, 0] },
-  "go-kart": { scale: [1, 1, 1], rotation: [0, 0, 0], position: [0, 0.5, 0] },
-};
 
 export const VEHICLE_SPEEDS = {
   sedanSports: 4,

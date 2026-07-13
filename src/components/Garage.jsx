@@ -106,7 +106,7 @@ export function Garage({
           scale={[0.8, 0.8, 0.8]}
         >
           {showUi && (
-            <Billboard position={[0.5, 2.1, 0]}>
+            <Billboard position={[0.86, 2.34, 0]}>
               <Text fontSize={0.34} anchorX={"right"}>
                 {player.state.name || player.state.profile.name}
                 <meshBasicMaterial color="white" />

@@ -2,10 +2,10 @@ import { Html, PerspectiveCamera } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { RigidBody, CuboidCollider, euler, quat, vec3 } from "@react-three/rapier";
 import { useControls } from "leva";
-import { isHost, myPlayer, usePlayerState } from "playroomkit";
+import { myPlayer, usePlayerState } from "../multiplayer/party";
 import { useEffect, useRef } from "react";
 import { Vector3 } from "three";
-import { randInt } from "three/src/math/MathUtils";
+import { clamp, randInt } from "three/src/math/MathUtils";
 import { Rider } from "./Rider";
 import { VEHICLE_SPEEDS } from "./vehicleConfig";
 
@@ -27,18 +27,34 @@ export const RiderController = ({ state, controls }) => {
     },
   });
 
+  const cameraRef = useRef();
+  const zoom = useRef(1);
+  const isLocal = me?.id === state.id;
+
+  useEffect(() => {
+    if (!isLocal) return;
+    const onWheel = (e) => {
+      zoom.current = clamp(zoom.current + e.deltaY * 0.001, 0.5, 3);
+    };
+    window.addEventListener("wheel", onWheel, { passive: true });
+    return () => window.removeEventListener("wheel", onWheel);
+  }, [isLocal]);
+
   const lookAt = useRef(new Vector3(0, 0, 0));
   useFrame(({ camera }, delta) => {
     if (!rb.current) {
       return;
     }
-    if (me?.id === state.id) {
+    if (isLocal) {
+      if (cameraRef.current) {
+        cameraRef.current.position.set(0, 1.5 * zoom.current, -3 * zoom.current);
+      }
       const targetLookAt = vec3(rb.current.translation());
       lookAt.current.lerp(targetLookAt, 0.1);
       camera.lookAt(lookAt.current);
     }
     const rotVel = rb.current.angvel();
-    if (controls.isJoystickPressed()) {
+    if (isLocal && controls.isJoystickPressed()) {
       const angle = controls.angle();
       const dir = angle > Math.PI / 2 ? 1 : -1;
       rotVel.y = -dir * Math.sin(angle) * rotationSpeed;
@@ -52,14 +68,20 @@ export const RiderController = ({ state, controls }) => {
       rb.current.applyImpulse(impulse, true);
     }
     rb.current.setAngvel(rotVel, true);
-    if (isHost()) {
+    if (isLocal) {
       state.setState("pos", rb.current.translation());
       state.setState("rot", rb.current.rotation());
     } else {
       const pos = state.getState("pos");
       if (pos) {
-        rb.current.setTranslation(pos);
-        rb.current.setRotation(state.getState("rot"));
+        const current = rb.current.translation();
+        rb.current.setTranslation({
+          x: current.x + (pos.x - current.x) * 0.35,
+          y: current.y + (pos.y - current.y) * 0.35,
+          z: current.z + (pos.z - current.z) * 0.35,
+        });
+        const rot = state.getState("rot");
+        if (rot) rb.current.setRotation(rot);
       }
     }
     if (controls.isPressed("Respawn")) {
@@ -67,7 +89,7 @@ export const RiderController = ({ state, controls }) => {
     }
   });
   const respawn = () => {
-    if (isHost()) {
+    if (isLocal) {
       rb.current.setTranslation({
         x: randInt(-2, 2) * 4,
         y: 2,
@@ -95,15 +117,15 @@ export const RiderController = ({ state, controls }) => {
           }
         }}
       >
-        <CuboidCollider args={[0.5, 0.5, 0.9]} position={[0, 0.4, 0]} />
-        <Html position-y={0.55}>
+        <CuboidCollider args={[0.4, 0.6, 0.75]} position={[0, 0.6, 0]} />
+        <Html position-y={0.85}>
           <h1 className="text-center whitespace-nowrap text-white drop-shadow-md  backdrop-filter bg-slate-300 bg-opacity-30 backdrop-blur-lg rounded-md py-2 px-4 text-xl  transform -translate-x-1/2">
             {state.state.name || state.state.profile.name}
           </h1>
         </Html>
-        <Rider model={vehicleModel} scale={0.32} preview={false} />
+        <Rider model={vehicleModel} scale={0.6} preview={false} />
         {me?.id === state.id && (
-          <PerspectiveCamera makeDefault position={[0, 1.5, -3]} near={1} />
+          <PerspectiveCamera ref={cameraRef} makeDefault position={[0, 1.5, -3]} near={1} />
         )}
       </RigidBody>
     </group>

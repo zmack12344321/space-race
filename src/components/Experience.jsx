@@ -1,4 +1,4 @@
-import { useMultiplayerState } from "playroomkit";
+import { useMultiplayerState } from "../multiplayer/party";
 import { Game } from "./Game";
 import { Lobby } from "./Lobby";
 

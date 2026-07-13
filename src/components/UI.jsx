@@ -6,7 +6,7 @@ import {
   useMultiplayerState,
   usePlayerState,
   usePlayersList,
-} from "playroomkit";
+} from "../multiplayer/party";
 import { useEffect, useState } from "react";
 import { VEHICLE_MODELS } from "./vehicleConfig";
 

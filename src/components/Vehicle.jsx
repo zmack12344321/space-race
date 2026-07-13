@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Clone, useGLTF } from "@react-three/drei";
 import { VEHICLE_GLB_MODELS } from "./vehicleConfig";
 
@@ -7,8 +8,15 @@ import { VEHICLE_GLB_MODELS } from "./vehicleConfig";
 // one component.
 export const Vehicle = ({ model = "longboard", ...props }) => {
   const { scene } = useGLTF(`/models/vehicles/${model}-transformed.glb`, "/draco/");
+  const ref = useRef();
+  useEffect(() => {
+    if (!ref.current) return;
+    ref.current.traverse((o) => {
+      if (/collider/i.test(o.name)) o.visible = false;
+    });
+  }, [scene]);
   return (
-    <group {...props}>
+    <group {...props} ref={ref}>
       <Clone object={scene} castShadow />
     </group>
   );
