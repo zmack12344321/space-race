@@ -1,0 +1,13 @@
+diff --git a/node_modules/three/src/core/Clock.js b/node_modules/three/src/core/Clock.js
+index ee1a528..a0ef093 100644
+--- a/node_modules/three/src/core/Clock.js
++++ b/node_modules/three/src/core/Clock.js
+@@ -58,7 +58,7 @@ class Clock {
+ 		 */
+ 		this.running = false;
+ 
+-		warn( 'Clock: This module has been deprecated. Please use THREE.Timer instead.' ); // @deprecated, r183
++		// warn( 'Clock: This module has been deprecated. Please use THREE.Timer instead.' ); // @deprecated, r183
+ 
+ 	}
+ 

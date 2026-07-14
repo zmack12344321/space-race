@@ -2,7 +2,7 @@ import { routePartykitRequest, Server } from "partyserver";
 
 export class SpaceRaceServer extends Server {
   players = new Map();
-  roomState = { gameState: "lobby" };
+  roomState = { gameState: "title" };
   hostId = null;
 
   onConnect(connection) {
@@ -19,51 +19,50 @@ export class SpaceRaceServer extends Server {
   onMessage(connection, message) {
     if (typeof message !== "string") return;
 
-    let event;
     try {
-      event = JSON.parse(message);
+      const event = JSON.parse(message);
+
+      if (event.type === "join") {
+        const player = {
+          id: event.id,
+          state: {
+            profile: { name: event.name || "Rider" },
+            name: event.name || "Rider",
+            vehicle: event.vehicle || "longboard",
+            pos: event.pos || { x: 0, y: 2, z: 0 },
+            rot: event.rot || { x: 0, y: 0, z: 0, w: 1 },
+          },
+        };
+        this.players.set(event.id, player);
+        connection.setState({ playerId: event.id });
+        if (!this.hostId) this.hostId = event.id;
+        this.broadcastJson({ type: "playerJoined", player, hostId: this.hostId });
+        return;
+      }
+
+      if (event.type === "playerState") {
+        const player = this.players.get(event.id);
+        if (!player) return;
+        player.state[event.key] = event.value;
+        this.broadcastJson({
+          type: "playerState",
+          id: event.id,
+          key: event.key,
+          value: event.value,
+        });
+        return;
+      }
+
+      if (event.type === "roomState") {
+        this.roomState[event.key] = event.value;
+        this.broadcastJson({
+          type: "roomState",
+          key: event.key,
+          value: event.value,
+        });
+      }
     } catch {
-      return;
-    }
-
-    if (event.type === "join") {
-      const player = {
-        id: event.id,
-        state: {
-          profile: { name: event.name || "Rider" },
-          name: event.name || "Rider",
-          vehicle: "sedanSports",
-          pos: { x: 0, y: 2, z: 0 },
-          rot: { x: 0, y: 0, z: 0, w: 1 },
-        },
-      };
-      this.players.set(event.id, player);
-      connection.setState({ playerId: event.id });
-      if (!this.hostId) this.hostId = event.id;
-      this.broadcastJson({ type: "playerJoined", player, hostId: this.hostId });
-      return;
-    }
-
-    if (event.type === "playerState") {
-      const player = this.players.get(event.id);
-      if (!player) return;
-      player.state[event.key] = event.value;
-      this.broadcastJson({
-        type: "playerState",
-        id: event.id,
-        key: event.key,
-        value: event.value,
-      });
-      return;
-    }
-
-    if (event.type === "roomState") {
-      this.roomState[event.key] = event.value;
-      this.broadcastJson({
-        type: "roomState",
-        key: event.key,
-        value: event.value,
-      });
+      // Ignore invalid JSON messages
     }
   }
 

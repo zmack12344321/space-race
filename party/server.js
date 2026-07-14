@@ -2,7 +2,7 @@ export default class Server {
   constructor(room) {
     this.room = room;
     this.players = new Map();
-    this.roomState = { gameState: "lobby" };
+    this.roomState = { gameState: "title" };
     this.hostId = null;
   }
 
@@ -31,7 +31,7 @@ export default class Server {
         state: {
           profile: { name: event.name || "Rider" },
           name: event.name || "Rider",
-          vehicle: "sedanSports",
+          vehicle: event.vehicle || "longboard",
           pos: { x: 0, y: 2, z: 0 },
           rot: { x: 0, y: 0, z: 0, w: 1 },
         },

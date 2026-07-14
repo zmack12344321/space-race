@@ -109,6 +109,29 @@ function blend(A, B, mask) {
   return out;
 }
 
+// Creates an incredibly organic, wavy, non-grid mask using domain-warped sine waves.
+// This completely destroys the "plaid" or "waffle" artifacts caused by value noise.
+function makeOrganicTileableMask(cells) {
+  const size = 512;
+  const out = new Float32Array(size * size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let nx = (x / size) * cells * Math.PI * 2;
+      let ny = (y / size) * cells * Math.PI * 2;
+      
+      // Domain warping for cloud-like organic patches
+      let qx = Math.sin(nx + 0.5 * Math.sin(ny));
+      let qy = Math.cos(ny + 0.5 * Math.cos(nx));
+      
+      let v = Math.sin(nx + 2.0 * qy) + Math.cos(ny + 2.0 * qx);
+      
+      // Normalize from roughly [-2, 2] to [0, 1]
+      out[y * size + x] = (v + 2) / 4;
+    }
+  }
+  return out;
+}
+
 function canvasFrom(imageData) {
   const c = document.createElement("canvas");
   c.width = SIZE;
@@ -135,7 +158,7 @@ export function createMoonGroundTextures(
   {
     repeat = 60,
     normalRepeat = 240,
-    dispRepeat = 24,
+    dispRepeat = 20,
     cells = 10,
     heightMix = 0.55,
     desat = 0.8,
@@ -143,7 +166,9 @@ export function createMoonGroundTextures(
     bright = 1.0,
   } = {}
 ) {
-  const mask = makeTilingValueNoise(cells, 42);
+  // Use organic domain-warped noise instead of raw value noise so the patches of rocks
+  // look like natural sweeping dust clouds rather than a checkerboard grid!
+  const mask = makeOrganicTileableMask(cells);
   const aColor = toImageData(diffA);
   const bColor = toImageDataShifted(diffB);
   const aNorm = toImageData(norA);

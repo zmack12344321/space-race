@@ -38,14 +38,17 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  </React.StrictMode>
+);
+
 insertCoin({
   skipLobby: true,
-}).then(() =>
-  ReactDOM.createRoot(document.getElementById("root")).render(
-    <React.StrictMode>
-      <ErrorBoundary>
-        <App />
-      </ErrorBoundary>
-    </React.StrictMode>
-  )
-);
+  offline: window.location.pathname.startsWith("/test"),
+}).catch((error) => {
+  console.error("Failed to initialize multiplayer:", error);
+});

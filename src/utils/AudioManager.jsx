@@ -4,5 +4,7 @@ export const audios = {
 
 export const playAudio = (audio) => {
   audio.currentTime = 0;
-  audio.play();
+  audio.play().catch(() => {
+    // Autoplay is blocked until the user interacts.
+  });
 };

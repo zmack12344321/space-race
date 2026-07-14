@@ -1,10 +1,12 @@
 import PartySocket from "partysocket";
 import { useEffect, useSyncExternalStore } from "react";
+import { getLunarSpawnPoint } from "../utils/lunarHeightfield";
 
-const DEFAULT_ROOM_STATE = { gameState: "lobby" };
+const DEFAULT_ROOM_STATE = { gameState: "title" };
 const JOIN_HANDLERS = new Set();
 const LISTENERS = new Set();
 const TRANSIENT_KEYS = new Set(["pos", "rot", "_controls"]);
+const DEFAULT_VEHICLE = "longboard";
 
 let socket = null;
 let localPlayer = null;
@@ -13,6 +15,23 @@ let roomState = { ...DEFAULT_ROOM_STATE };
 let players = new Map();
 let version = 0;
 let lastSentAt = new Map();
+
+function getPreferredVehicle() {
+  try {
+    const value = window.localStorage.getItem("space-race.vehicle");
+    return value || DEFAULT_VEHICLE;
+  } catch {
+    return DEFAULT_VEHICLE;
+  }
+}
+
+function setPreferredVehicle(value) {
+  try {
+    window.localStorage.setItem("space-race.vehicle", value);
+  } catch {
+    // Ignore storage failures.
+  }
+}
 
 function emit() {
   version += 1;
@@ -48,7 +67,7 @@ function getOrCreateRoomId() {
 function getHost() {
   const configuredHost = import.meta.env.VITE_PARTYKIT_HOST;
   if (configuredHost) return configuredHost.replace(/^https?:\/\//, "");
-  if (window.location.hostname === "localhost") return "space-race.zoneymack.workers.dev";
+  if (window.location.hostname === "localhost") return "localhost:1999";
   return window.location.host;
 }
 
@@ -61,6 +80,7 @@ function makePlayer(raw) {
     },
     setState(key, value) {
       player.state[key] = value;
+      if (key === "vehicle" && typeof value === "string") setPreferredVehicle(value);
       if (!TRANSIENT_KEYS.has(key)) emit();
 
       if (key === "pos" || key === "rot") {
@@ -137,37 +157,41 @@ function handleMessage(event) {
   }
 }
 
-export async function insertCoin() {
+export async function insertCoin({ offline = false } = {}) {
   const id = crypto.randomUUID();
   const fallbackName = `Rider ${id.slice(0, 4)}`;
+  const isTestMode = window.location.pathname.startsWith("/test");
+  const spawnPoint = isTestMode ? { x: 0, y: 8, z: 0 } : getLunarSpawnPoint();
+  const vehicle = getPreferredVehicle();
   localPlayer = makePlayer({
     id,
     state: {
       profile: { name: fallbackName },
       name: fallbackName,
-      vehicle: "sedanSports",
-      pos: { x: 0, y: 2, z: 0 },
+      vehicle,
+      pos: spawnPoint,
       rot: { x: 0, y: 0, z: 0, w: 1 },
     },
   });
   players.set(id, localPlayer);
   hostId = id;
 
-  socket = new PartySocket({
-    host: getHost(),
-    party: "space-race-server",
-    room: getOrCreateRoomId(),
-    id,
-  });
+  if (!offline) {
+    socket = new PartySocket({
+      host: getHost(),
+      room: getOrCreateRoomId(),
+      id,
+    });
 
-  socket.addEventListener("message", handleMessage);
-  socket.addEventListener(
-    "open",
-    () => {
-      send({ type: "join", id, name: fallbackName });
-    },
-    { once: true }
-  );
+    socket.addEventListener("message", handleMessage);
+    socket.addEventListener(
+      "open",
+      () => {
+        send({ type: "join", id, name: fallbackName, vehicle, pos: spawnPoint, rot: { x: 0, y: 0, z: 0, w: 1 } });
+      },
+      { once: true }
+    );
+  }
   emit();
 }
 
