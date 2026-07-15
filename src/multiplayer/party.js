@@ -6,6 +6,10 @@ const DEFAULT_ROOM_STATE = { gameState: "title" };
 const JOIN_HANDLERS = new Set();
 const LISTENERS = new Set();
 const TRANSIENT_KEYS = new Set(["pos", "rot", "_controls"]);
+// Outbound position/rotation rate. Higher = smoother remote view (more
+// bandwidth). 20ms ≈ 50Hz, which makes remote avatars track closely to the
+// local 60fps view once interpolated.
+const POSITION_UPDATE_MS = 20;
 const DEFAULT_VEHICLE = "longboard";
 
 let socket = null;
@@ -101,7 +105,7 @@ function makePlayer(raw) {
       if (key === "pos" || key === "rot") {
         const throttleKey = `${player.id}:${key}`;
         const now = performance.now();
-        if (now - (lastSentAt.get(throttleKey) || 0) < 50) return;
+        if (now - (lastSentAt.get(throttleKey) || 0) < POSITION_UPDATE_MS) return;
         lastSentAt.set(throttleKey, now);
       }
 
