@@ -1,4 +1,4 @@
-import { AdaptiveDpr, PerformanceMonitor, Preload } from "@react-three/drei";
+import { AdaptiveDpr, PerformanceMonitor } from "@react-three/drei";
 import { MeshCollider, RigidBody } from "@react-three/rapier";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState, startTransition } from "react";
@@ -167,7 +167,6 @@ export function LunarSky() {
     <>
       <SpaceBackdrop />
       <AdaptiveDpr pixelated />
-      <Preload all />
     </>
   );
 }

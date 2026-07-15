@@ -3,7 +3,7 @@ import { useThree } from "@react-three/fiber";
 import { myPlayer, usePlayersList } from "../../multiplayer/party";
 import { useEffect, useRef } from "react";
 import { Vector3 } from "three";
-import { Lunar1 } from "../environment/Lunar1";
+import { Lobby as LunarLobby } from "../environment/Lobby";
 import { LunarPreview } from "../environment/LunarPreview";
 import { Physics } from "@react-three/rapier";
 import { getLobbyCameraLookAt, sortLobbyPlayers } from "../environment/lobbyLayout";
@@ -69,7 +69,7 @@ export const Lobby = () => {
         }}
       />
       <Physics paused>
-        {isPreviewMode ? <LunarPreview players={players} me={me} /> : <Lunar1 players={players} me={me} />}
+        {isPreviewMode ? <LunarPreview players={players} me={me} /> : <LunarLobby players={players} me={me} />}
       </Physics>
     </>
   );

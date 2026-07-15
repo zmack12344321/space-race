@@ -55,7 +55,7 @@ function ActionButton({ children, onClick }) {
   );
 }
 
-export function EcctrlControlPanel({ open, onOpenChange, vehicleModel, loading = false }) {
+export function EcctrlTuningPanel({ open, onClose, vehicleModel }) {
   const [tab, setTab] = useState("scene");
   const panelRef = useRef(null);
   const gamepadRef = useGamepadRef();
@@ -148,6 +148,8 @@ export function EcctrlControlPanel({ open, onOpenChange, vehicleModel, loading =
   useEffect(() => {
     if (!open) return;
 
+    if (typeof onClose !== "function") return;
+
     const id = requestAnimationFrame(() => {
       const activeTab = panelRef.current?.querySelector(`[data-tab="${tab}"]`);
       focusAndReveal(activeTab);
@@ -156,7 +158,7 @@ export function EcctrlControlPanel({ open, onOpenChange, vehicleModel, loading =
     const onKeyDown = (event) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onOpenChange(false);
+        onClose();
         return;
       }
 
@@ -204,7 +206,7 @@ export function EcctrlControlPanel({ open, onOpenChange, vehicleModel, loading =
       const pad = gamepadRef.current;
 
       if (pad.justPressed.start || pad.justPressed.b) {
-        onOpenChange(false);
+        onClose();
       } else if (pad.justPressed.up) {
         moveFocus(-1);
       } else if (pad.justPressed.down) {
@@ -250,30 +252,16 @@ export function EcctrlControlPanel({ open, onOpenChange, vehicleModel, loading =
       cancelAnimationFrame(raf);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [open, onOpenChange, tab, tabs, gamepadRef]);
+  }, [open, onClose, tab, tabs, gamepadRef]);
+
+  if (!open) return null;
 
   return (
-    <div className="fixed left-4 top-4 z-40 pointer-events-none">
-      {!loading && (
-        <button
-          type="button"
-          onClick={() => onOpenChange(!open)}
-          aria-label={open ? "Close menu" : "Open menu"}
-          title={open ? "Close menu" : "Open menu"}
-          className="ui-button pointer-events-auto px-8 py-2 bg-gray-100 text-black text-2xl rounded-md flex items-center gap-2"
-        >
-          Menu
-        </button>
-      )}
-
-      <div
-        className={`pointer-events-none absolute left-0 top-[calc(100%+0.75rem)] transition-all duration-200 ease-out ${open ? "translate-y-0 scale-100 opacity-100" : "translate-y-2 scale-[0.98] opacity-0"}`}
-      >
-        <div
-          ref={panelRef}
-          className={`${panelShell} pointer-events-auto`}
-          style={{ fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}
-        >
+    <div
+      ref={panelRef}
+      className={`${panelShell} pointer-events-auto`}
+      style={{ fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}
+    >
           <div className="border-b border-white/10 px-7 py-6">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -369,7 +357,5 @@ export function EcctrlControlPanel({ open, onOpenChange, vehicleModel, loading =
             </div>
           </div>
         </div>
-      </div>
-    </div>
   );
 }

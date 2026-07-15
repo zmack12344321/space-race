@@ -101,6 +101,7 @@ const PlanetMaterial = shaderMaterial(
     uShadowColor: new THREE.Color("#000000"),
     uSeed: 0,
     uTime: 0,
+    uStyle: 0,
     uNoiseScale: 5,
     uBandScale: 10,
     uBrightness: 0.5,
@@ -123,6 +124,7 @@ const PlanetMaterial = shaderMaterial(
     uniform vec3 uShadowColor;
     uniform float uSeed;
     uniform float uTime;
+    uniform float uStyle;
     uniform float uNoiseScale;
     uniform float uBandScale;
     uniform float uBrightness;
@@ -183,10 +185,37 @@ const PlanetMaterial = shaderMaterial(
       float warpedBands = 0.5 + 0.5 * sin((n.x * (uBandScale * 0.35) + n.z * (uBandScale * 0.22) + mottling * 2.8) * 6.2831853 + uTime * 0.18);
       float craterMask = smoothstep(0.52, 0.94, fbm(p * 2.6 + vec3(8.0, 1.7, 4.3)));
       float storm = smoothstep(0.25, 0.85, fbm(p * 0.7 + vec3(uTime * 0.03, uTime * 0.015, 0.0)));
+      float style = floor(uStyle + 0.5);
 
-      vec3 color = mix(uShadowColor, uBaseColor, 0.34 + mottling * 0.66);
-      color = mix(color, uAccentColor, bands * 0.42 + warpedBands * 0.18 + craterMask * 0.22);
-      color += (streaks - 0.5) * 0.1;
+      vec3 color;
+      if (style < 0.5) {
+        float gasBands = 0.5 + 0.5 * sin((n.y * uBandScale * 1.8 + uSeed * 0.7) * 6.2831853 + uTime * 0.35);
+        float stormBand = smoothstep(0.62, 0.92, fbm(n * (uNoiseScale * 1.5) + vec3(uTime * 0.08, uSeed * 4.0, 1.3)));
+        color = mix(uShadowColor, uBaseColor, 0.28 + mottling * 0.72);
+        color = mix(color, uAccentColor, gasBands * 0.55 + warpedBands * 0.1 + stormBand * 0.25);
+        color += (streaks - 0.5) * 0.06;
+      } else if (style < 1.5) {
+        float continent = smoothstep(0.42, 0.68, fbm(n * (uNoiseScale * 1.3) + vec3(uSeed * 6.0, 0.0, uTime * 0.04)));
+        float ridge = smoothstep(0.57, 0.88, fbm(n * (uNoiseScale * 3.0) + vec3(3.7, uTime * 0.03, uSeed * 2.1)));
+        float basin = smoothstep(0.35, 0.77, fbm(n * (uNoiseScale * 2.1) + vec3(0.0, uSeed * 5.0, uTime * 0.02)));
+        color = mix(uShadowColor, uBaseColor, 0.18 + mottling * 0.82);
+        color = mix(color, uAccentColor, continent * 0.4 + ridge * 0.22 + basin * 0.12);
+        color += (streaks - 0.5) * 0.1;
+      } else if (style < 2.5) {
+        float ice = smoothstep(0.45, 0.9, fbm(n * (uNoiseScale * 1.15) + vec3(uTime * 0.03, uSeed * 2.0, 7.1)));
+        float crack = abs(sin((n.x * 18.0 + n.z * 9.0 + uTime * 0.3 + uSeed) * 3.1415926));
+        float crackMask = smoothstep(0.76, 0.98, crack * 0.8 + fbm(n * 10.0 + vec3(uTime * 0.06, 4.0, 2.0)) * 0.2);
+        color = mix(uShadowColor, uBaseColor, 0.25 + mottling * 0.75);
+        color = mix(color, uAccentColor, ice * 0.45 + crackMask * 0.22);
+        color += (warpedBands - 0.5) * 0.05;
+      } else {
+        float dune = 0.5 + 0.5 * sin((n.x * (uBandScale * 0.9) + n.z * (uBandScale * 0.55) + mottling * 2.2) * 6.2831853 + uTime * 0.2);
+        float dust = smoothstep(0.4, 0.88, fbm(n * (uNoiseScale * 1.9) + vec3(uSeed * 2.0, uTime * 0.03, 5.0)));
+        color = mix(uShadowColor, uBaseColor, 0.24 + mottling * 0.76);
+        color = mix(color, uAccentColor, dune * 0.35 + dust * 0.3);
+        color += (streaks - 0.5) * 0.07;
+      }
+
       color = mix(color, color * 1.12 + uAccentColor * 0.06, storm * 0.18);
 
       vec3 lightDir = normalize(vec3(-0.55, 0.32, 0.76));
@@ -301,6 +330,7 @@ function CelestialBody({
   shadow = "#000000",
   speed = 0.12,
   ring = false,
+  style = 0,
   floatRange = [-0.08, 0.08],
   atmosphere = 1.05,
   noiseScale = 5,
@@ -330,6 +360,7 @@ function CelestialBody({
             uAccentColor={accentColor}
             uShadowColor={shadowColor}
             uSeed={scale * 0.013 + position[0] * 0.0007 + position[2] * 0.0009}
+            uStyle={style}
             uNoiseScale={noiseScale}
             uBandScale={bandScale}
             uBrightness={brightness}
@@ -354,16 +385,19 @@ function CelestialBody({
 
 function SunCluster() {
   const planets = [
-    { position: [-1320, 520, -1600], scale: 188, color: "#6a548b", accent: "#d4b9ff", shadow: "#1d142f", speed: 0.014, atmosphere: 1.08, noiseScale: 4.2, bandScale: 18, brightness: 0.4, rimStrength: 0.045 },
-    { position: [-420, 410, -980], scale: 112, color: "#8b6340", accent: "#f3c98b", shadow: "#2f1b10", speed: 0.028, ring: true, atmosphere: 1.05, noiseScale: 6.7, bandScale: 6, brightness: 0.42, rimStrength: 0.04 },
-    { position: [430, 560, -1220], scale: 154, color: "#4f71a3", accent: "#c8e1ff", shadow: "#10243a", speed: 0.02, atmosphere: 1.06, noiseScale: 4.7, bandScale: 14, brightness: 0.4, rimStrength: 0.045 },
-    { position: [1240, 620, -860], scale: 132, color: "#6670b8", accent: "#dde1ff", shadow: "#191d3f", speed: 0.018, atmosphere: 1.05, noiseScale: 5.3, bandScale: 10, brightness: 0.38, rimStrength: 0.04 },
-    { position: [1780, 500, -300], scale: 170, color: "#a35628", accent: "#ffc38c", shadow: "#36180f", speed: 0.016, atmosphere: 1.06, noiseScale: 5.0, bandScale: 9, brightness: 0.42, rimStrength: 0.045 },
-    { position: [980, 760, 1040], scale: 104, color: "#a0b0c8", accent: "#eef4ff", shadow: "#465067", speed: 0.01, ring: true, atmosphere: 1.04, noiseScale: 6.9, bandScale: 5, brightness: 0.34, rimStrength: 0.035 },
-    { position: [-560, 690, 1520], scale: 136, color: "#507d64", accent: "#c0ead4", shadow: "#172821", speed: 0.012, atmosphere: 1.05, noiseScale: 5.7, bandScale: 11, brightness: 0.39, rimStrength: 0.04 },
-    { position: [-1620, 610, 620], scale: 158, color: "#92704a", accent: "#f2d6aa", shadow: "#3b2b1a", speed: 0.015, atmosphere: 1.06, noiseScale: 5.6, bandScale: 8, brightness: 0.4, rimStrength: 0.04 },
-    { position: [120, 920, -420], scale: 230, color: "#5b7fa6", accent: "#d2e8ff", shadow: "#16243a", speed: 0.008, atmosphere: 1.07, noiseScale: 4.0, bandScale: 13, brightness: 0.34, rimStrength: 0.03 },
-    { position: [-920, 860, 180], scale: 204, color: "#825f98", accent: "#e3ccff", shadow: "#241634", speed: 0.009, atmosphere: 1.07, noiseScale: 4.9, bandScale: 15, brightness: 0.34, rimStrength: 0.03 },
+    { position: [-1850, 1480, -2380], scale: 920, color: "#6b577f", accent: "#ceb7ff", shadow: "#1e152c", speed: 0.004, atmosphere: 1.085, noiseScale: 3.6, bandScale: 19, brightness: 0.26, rimStrength: 0.02, style: 0 },
+    { position: [-1320, 520, -1600], scale: 220, color: "#6a548b", accent: "#d4b9ff", shadow: "#1d142f", speed: 0.014, atmosphere: 1.08, noiseScale: 4.2, bandScale: 18, brightness: 0.38, rimStrength: 0.04, style: 0 },
+    { position: [-420, 410, -980], scale: 122, color: "#8b6340", accent: "#f3c98b", shadow: "#2f1b10", speed: 0.028, ring: true, atmosphere: 1.05, noiseScale: 6.7, bandScale: 6, brightness: 0.4, rimStrength: 0.035, style: 1 },
+    { position: [430, 560, -1220], scale: 164, color: "#4f71a3", accent: "#c8e1ff", shadow: "#10243a", speed: 0.02, atmosphere: 1.06, noiseScale: 4.7, bandScale: 14, brightness: 0.38, rimStrength: 0.04, style: 2 },
+    { position: [1240, 620, -860], scale: 142, color: "#6670b8", accent: "#dde1ff", shadow: "#191d3f", speed: 0.018, atmosphere: 1.05, noiseScale: 5.3, bandScale: 10, brightness: 0.36, rimStrength: 0.035, style: 3 },
+    { position: [1780, 500, -300], scale: 180, color: "#a35628", accent: "#ffc38c", shadow: "#36180f", speed: 0.016, atmosphere: 1.06, noiseScale: 5.0, bandScale: 9, brightness: 0.4, rimStrength: 0.04, style: 1 },
+    { position: [980, 760, 1040], scale: 112, color: "#a0b0c8", accent: "#eef4ff", shadow: "#465067", speed: 0.01, ring: true, atmosphere: 1.04, noiseScale: 6.9, bandScale: 5, brightness: 0.32, rimStrength: 0.03, style: 2 },
+    { position: [-560, 690, 1520], scale: 150, color: "#507d64", accent: "#c0ead4", shadow: "#172821", speed: 0.012, atmosphere: 1.05, noiseScale: 5.7, bandScale: 11, brightness: 0.37, rimStrength: 0.035, style: 1 },
+    { position: [-1620, 610, 620], scale: 170, color: "#92704a", accent: "#f2d6aa", shadow: "#3b2b1a", speed: 0.015, atmosphere: 1.06, noiseScale: 5.6, bandScale: 8, brightness: 0.38, rimStrength: 0.035, style: 4 },
+    { position: [120, 920, -420], scale: 260, color: "#5b7fa6", accent: "#d2e8ff", shadow: "#16243a", speed: 0.008, atmosphere: 1.07, noiseScale: 4.0, bandScale: 13, brightness: 0.3, rimStrength: 0.025, style: 0 },
+    { position: [-920, 860, 180], scale: 232, color: "#825f98", accent: "#e3ccff", shadow: "#241634", speed: 0.009, atmosphere: 1.07, noiseScale: 4.9, bandScale: 15, brightness: 0.3, rimStrength: 0.025, style: 3 },
+    { position: [-300, 1260, 540], scale: 82, color: "#b4c7df", accent: "#f5fbff", shadow: "#525e73", speed: 0.012, atmosphere: 1.03, noiseScale: 7.2, bandScale: 4, brightness: 0.27, rimStrength: 0.018, style: 2 },
+    { position: [720, 1180, -70], scale: 68, color: "#d6c092", accent: "#fff0c2", shadow: "#6d5d3a", speed: 0.014, atmosphere: 1.03, noiseScale: 6.5, bandScale: 5, brightness: 0.28, rimStrength: 0.018, style: 4 },
   ];
 
   return (
@@ -371,9 +405,13 @@ function SunCluster() {
       {planets.map((planet, index) => (
         <CelestialBody key={index} {...planet} />
       ))}
+      <mesh position={[-1850, 1480, -2380]}>
+        <sphereGeometry args={[1.08, 64, 64]} />
+        <meshBasicMaterial color="#dbcafc" transparent opacity={0.03} blending={THREE.AdditiveBlending} depthWrite={false} fog={false} />
+      </mesh>
       <mesh position={[-1320, 340, -1600]}>
         <sphereGeometry args={[1.6, 64, 64]} />
-        <meshBasicMaterial color="#cdb8ff" transparent opacity={0.07} blending={THREE.AdditiveBlending} depthWrite={false} fog={false} />
+        <meshBasicMaterial color="#cdb8ff" transparent opacity={0.045} blending={THREE.AdditiveBlending} depthWrite={false} fog={false} />
       </mesh>
       <pointLight position={[-1320, 340, -1600]} color="#d4b7ff" intensity={10} distance={800} />
       <pointLight position={[1780, 270, -300]} color="#ff6b35" intensity={8} distance={700} />

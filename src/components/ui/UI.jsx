@@ -10,7 +10,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { Joystick, VirtualButton } from "ecctrl/input";
 import { VEHICLE_MODELS, VEHICLE_THUMBNAILS } from "../vehicles/vehicleConfig";
-import { EcctrlControlPanel } from "./EcctrlControlPanel";
+import { PauseMenu } from "./PauseMenu";
 import { PhysicsDebugAtom, GameReadyAtom } from "./debugState";
 import { useIsTouchDevice } from "./useIsTouchDevice";
 import { getLunarSeed, setLunarSeed } from "../../utils/lunarHeightfield";
@@ -40,93 +40,6 @@ const LOADING_RIDGES = [
   "M0 80 C10 74 18 70 29 72 C40 74 47 83 58 81 C68 79 78 70 88 72 C94 73 98 76 100 78",
   "M0 88 C15 82 22 79 33 80 C44 81 52 90 63 88 C74 86 83 79 93 81 C96 82 98 84 100 86",
 ];
-
-const INPUT_PROMPTS = {
-  keyboard: {
-    move: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Keyboard & Mouse/Vector/keyboard_w_outline.svg", import.meta.url).href,
-    jump: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Keyboard & Mouse/Vector/keyboard_space_outline.svg", import.meta.url).href,
-    boost: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Keyboard & Mouse/Vector/keyboard_shift_outline.svg", import.meta.url).href,
-    brake: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Keyboard & Mouse/Vector/keyboard_e_outline.svg", import.meta.url).href,
-    reverse: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Keyboard & Mouse/Vector/keyboard_s_outline.svg", import.meta.url).href,
-    menu: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Keyboard & Mouse/Vector/keyboard_escape_outline.svg", import.meta.url).href,
-  },
-  xbox: {
-    move: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Xbox Series/Vector/xbox_stick_l.svg", import.meta.url).href,
-    jump: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Xbox Series/Vector/xbox_button_a_outline.svg", import.meta.url).href,
-    boost: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Xbox Series/Vector/xbox_button_y_outline.svg", import.meta.url).href,
-    brake: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Xbox Series/Vector/xbox_button_b_outline.svg", import.meta.url).href,
-    reverse: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Xbox Series/Vector/xbox_lt_outline.svg", import.meta.url).href,
-    menu: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Xbox Series/Vector/xbox_button_start_outline.svg", import.meta.url).href,
-  },
-};
-
-const CONTROL_ROWS = [
-  {
-    label: "Move",
-    keyboard: [INPUT_PROMPTS.keyboard.move, new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Keyboard & Mouse/Vector/keyboard_a_outline.svg", import.meta.url).href, new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Keyboard & Mouse/Vector/keyboard_s_outline.svg", import.meta.url).href, new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Keyboard & Mouse/Vector/keyboard_d_outline.svg", import.meta.url).href],
-    xbox: [INPUT_PROMPTS.xbox.move],
-    help: "Drive and steer",
-  },
-  {
-    label: "Jump",
-    keyboard: [INPUT_PROMPTS.keyboard.jump],
-    xbox: [INPUT_PROMPTS.xbox.jump],
-    help: "Pop off the ground",
-  },
-  {
-    label: "Boost",
-    keyboard: [INPUT_PROMPTS.keyboard.boost],
-    xbox: [INPUT_PROMPTS.xbox.boost],
-    help: "Hold for extra speed",
-  },
-  {
-    label: "Brake / Reverse",
-    keyboard: [INPUT_PROMPTS.keyboard.reverse, INPUT_PROMPTS.keyboard.brake],
-    xbox: [INPUT_PROMPTS.xbox.brake, INPUT_PROMPTS.xbox.reverse],
-    help: "Slow down or back up",
-  },
-  {
-    label: "Menu",
-    keyboard: [INPUT_PROMPTS.keyboard.menu],
-    xbox: [INPUT_PROMPTS.xbox.menu],
-    help: "Open or close the menu",
-  },
-];
-
-function PromptBadge({ src, alt }) {
-  return (
-    <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/[0.06]">
-      <img src={src} alt={alt} className="h-5 w-5 object-contain" draggable="false" />
-    </span>
-  );
-}
-
-const QUICK_CONTROL_ROWS = [
-  { label: "Move", keyboard: INPUT_PROMPTS.keyboard.move, xbox: INPUT_PROMPTS.xbox.move },
-  { label: "Jump", keyboard: INPUT_PROMPTS.keyboard.jump, xbox: INPUT_PROMPTS.xbox.jump },
-  { label: "Boost", keyboard: INPUT_PROMPTS.keyboard.boost, xbox: INPUT_PROMPTS.xbox.boost },
-];
-
-function ControlsOverlay() {
-  return (
-    <div className="pointer-events-none fixed bottom-4 right-4 z-30 flex flex-col items-end">
-      <div className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white shadow-[0_18px_50px_rgba(0,0,0,0.45)] backdrop-blur-md">
-        <div className="mb-2 text-[12px] font-bold uppercase tracking-[0.24em] text-cyan-300/90">How to Play</div>
-        <div className="flex flex-col gap-2">
-          {QUICK_CONTROL_ROWS.map((row) => (
-            <div key={row.label} className="flex items-center gap-3">
-              <span className="w-14 text-[15px] font-black uppercase tracking-[0.1em] text-white/90">{row.label}</span>
-              <div className="flex items-center gap-1.5">
-                <PromptBadge src={row.keyboard} alt={`${row.label} keyboard`} />
-                <PromptBadge src={row.xbox} alt={`${row.label} controller`} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function CompactSlider({ label, value, min, max, step, onChange }) {
   return (
@@ -481,8 +394,24 @@ export const UI = () => {
         </div>
       </div>
       )}
-      {gameState === "game" && <EcctrlControlPanel loading={loadingSlide} open={menuOpen} onOpenChange={setMenuOpen} vehicleModel={me?.getState("vehicle") || "longboard"} />}
-      {gameState === "game" && menuOpen && <ControlsOverlay />}
+      {gameState === "game" && !loadingSlide && (
+        <button
+          type="button"
+          onClick={() => setMenuOpen((value) => !value)}
+          aria-label={menuOpen ? "Resume" : "Pause"}
+          className="ui-button pointer-events-auto fixed left-4 top-4 z-50 px-8 py-2 bg-gray-100 text-black text-2xl rounded-md flex items-center gap-2"
+        >
+          {menuOpen ? "Resume" : "Menu"}
+        </button>
+      )}
+      {gameState === "game" && (
+        <PauseMenu
+          open={menuOpen}
+          onResume={() => setMenuOpen(false)}
+          onQuit={() => setGameState("title")}
+          vehicleModel={me?.getState("vehicle") || "longboard"}
+        />
+      )}
       {me && <BoardSelector me={me} menuOpen={menuOpen} />}
       {gameState === "game" && isTouchDevice && <EcctrlTouchControls />}
       {gameState === "lobby" && isHost() && (

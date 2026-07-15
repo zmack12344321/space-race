@@ -33,7 +33,7 @@ const FOG_DENSITY = 0.003; // spooky depth haze (tuned so ranges stay readable)
 // Mock data so Triplex can render this scene standalone (no live PlayroomKit
 // room). The production Lobby passes the REAL players/me via props, so any
 // transform you drag here is written into this file and ships in the build —
-// exactly like Rider.jsx. This is NOT a sandbox: Lobby renders <Lunar1/>.
+// exactly like Rider.jsx. This is NOT a sandbox: Lobby renders <Lobby/>.
 const MOCK_PLAYERS = [
   {
     id: "me",
@@ -51,7 +51,7 @@ const MOCK_PLAYERS = [
 // All the ground "look" knobs are exposed as props with explicit JSDoc types
 // so Triplex reliably renders them as Component Controls (number inputs).
 /**
- * @typedef {Object} Lunar1Props
+ * @typedef {Object} LobbyProps
  * @property {any} [players] - Roster of riders to display.
  * @property {any} [me] - The local player.
  * @property {boolean} [showUi=true] - Show name billboards / edit affordances.
@@ -64,7 +64,7 @@ const MOCK_PLAYERS = [
  */
 
 /**
- * @param {Lunar1Props} props
+ * @param {LobbyProps} props
  */
 export function Lunar2(props) {
   const {

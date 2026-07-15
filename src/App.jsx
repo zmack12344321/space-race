@@ -1,7 +1,7 @@
 import { Canvas } from "@react-three/fiber";
 import { useAtom } from "jotai";
 import * as THREE from "three";
-import { AdaptiveDpr, AdaptiveEvents, PerformanceMonitor } from "@react-three/drei";
+import { AdaptiveDpr, AdaptiveEvents, PerformanceMonitor, Preload } from "@react-three/drei";
 import { Experience } from "./components/core/Experience";
 import { UI } from "./components/ui/UI";
 import { PhysicsDebugAtom } from "./components/ui/debugState";
@@ -32,6 +32,7 @@ function App() {
         <PerformanceMonitor>
           <AdaptiveEvents />
           <AdaptiveDpr pixelated />
+          <Preload all />
           <Experience level={isTestMode ? "skatepark" : "lunar"} physicsDebug={physicsDebug} debugMode={isTestMode} />
         </PerformanceMonitor>
       </Canvas>

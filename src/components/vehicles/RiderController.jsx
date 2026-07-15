@@ -387,7 +387,6 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
     const gamepadForward = pad.axes.rt > 0.12;
     const gamepadBack = pad.axes.lt > 0.12;
     const gamepadSteer = pad.axes.lx;
-    const cameraHeightOffset = Math.abs(pad.axes.ry) > 0.08 ? -pad.axes.ry * 0.75 : 0;
     const boostHeld = keys.current.boost || ecctrlButtons.current.b4 || pad.buttons.y;
     if (boostHeld !== boostActive) setBoostActive(boostHeld);
     const linvel = cachedBodyState.current.linvel;
@@ -397,13 +396,16 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
 
       if (isLocal && isSpawned) {
         if (cameraControls.current) {
-          cameraControls.current.moveTo(handle.currPos.x, handle.currPos.y + tuning.common.cameraHeight + cameraHeightOffset, handle.currPos.z, true);
+          cameraControls.current.moveTo(handle.currPos.x, handle.currPos.y + tuning.common.cameraHeight, handle.currPos.z, true);
           cameraUp.current.copy(handle.upAxis);
           camera.up.lerp(cameraUp.current, 0.1);
           cameraControls.current.setUp(camera.up);
 
           if (Math.abs(pad.axes.rx) > 0.08) {
             cameraControls.current.rotate(pad.axes.rx * tuning.common.cameraTurnSpeed * 0.4 * delta, 0, true);
+          }
+          if (Math.abs(pad.axes.ry) > 0.08) {
+            cameraControls.current.rotate(0, -pad.axes.ry * tuning.common.cameraTurnSpeed * 0.4 * delta, true);
           }
 
           const forwardInput = !isDrone && (keys.current.forward || ecctrlButtons.current.b3 || gamepadForward || joystickL.y > 0.2);
@@ -539,7 +541,7 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
         enableCustomGravity
         enable={isLocal}
       >
-        {isDrone ? <DroneControllerBody drone={tuning.drone} paused={!isLocal || !isSpawned} boostMultiplier={boostMultiplier} /> : <CarControllerBody car={tuning.board} paused={!isLocal || !isSpawned} />}
+        {isDrone ? <DroneControllerBody drone={tuning.drone} paused={!isLocal || !isSpawned || menuOpen} boostMultiplier={boostMultiplier} /> : <CarControllerBody car={tuning.board} paused={!isLocal || !isSpawned || menuOpen} />}
         <PlayerNameTag
           name={state.state.name || state.state.profile.name}
           isMe={isLocal}

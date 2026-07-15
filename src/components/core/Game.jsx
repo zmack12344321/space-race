@@ -14,6 +14,8 @@ import { LunarEnvironment } from "../environment/LunarEnvironment";
 import { getLunarHeight, getLunarSpawnCenter } from "../../utils/lunarHeightfield";
 import { useMultiplayerState } from "../../multiplayer/party";
 import { useFrame, useThree } from "@react-three/fiber";
+import { useAtomValue } from "jotai";
+import { GameMenuOpenAtom } from "../ui/UI";
 
 
 function GravitySetup() {
@@ -29,6 +31,7 @@ function GravitySetup() {
 
 export const Game = ({ level = "lunar", physicsDebug = false, debugMode = false }) => {
   const [players, setPlayers] = useState([]);
+  const paused = useAtomValue(GameMenuOpenAtom);
   const [sunAngle] = useMultiplayerState("sunAngle", 0.3);
   const mountainsRef = useRef();
   const lightRef = useRef();
@@ -91,11 +94,12 @@ export const Game = ({ level = "lunar", physicsDebug = false, debugMode = false 
             castShadow
             shadow-bias={-0.0005}
             shadow-normalBias={0.02}
-            shadow-mapSize={[2048, 2048]}
+            shadow-mapSize={[1024, 1024]}
+            shadow-camera-left={-60}
           />
         </>
       )}
-      <Physics gravity={[0, 0, 0]} debug={physicsDebug}>
+      <Physics gravity={[0, 0, 0]} debug={physicsDebug} paused={paused}>
         <GravitySetup />
         {level === "lunar" && <LunarTerrain />}
         {level === "lunar" && <LunarRocks />}
