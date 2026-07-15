@@ -162,13 +162,137 @@ function LoadingBackdrop() {
   );
 }
 
+function WarpStarfield() {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    let width = 0;
+    let height = 0;
+    let dpr = Math.min(window.devicePixelRatio || 1, 2);
+    let raf = 0;
+    let lastTime = performance.now();
+
+    const STAR_COUNT = 420;
+    const DEPTH = 1000;
+    const FOCAL = 320;
+    const stars = [];
+
+    const palette = [
+      [231, 253, 255],
+      [103, 232, 249],
+      [168, 85, 247],
+      [125, 211, 252],
+      [240, 171, 252],
+    ];
+
+    const resetStar = (star, fromFar = false) => {
+      star.x = (Math.random() - 0.5) * width * 1.6;
+      star.y = (Math.random() - 0.5) * height * 1.6;
+      star.z = fromFar ? DEPTH : Math.random() * DEPTH;
+      star.pz = star.z;
+      star.color = palette[(Math.random() * palette.length) | 0];
+    };
+
+    const resize = () => {
+      width = canvas.clientWidth;
+      height = canvas.clientHeight;
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+
+    const init = () => {
+      resize();
+      stars.length = 0;
+      for (let i = 0; i < STAR_COUNT; i++) {
+        const star = {};
+        resetStar(star, false);
+        stars.push(star);
+      }
+    };
+
+    const cx = () => width / 2;
+    const cy = () => height / 2;
+
+    const render = (now) => {
+      const dt = Math.min((now - lastTime) / 1000, 0.05);
+      lastTime = now;
+
+      ctx.clearRect(0, 0, width, height);
+      const speed = prefersReducedMotion ? 60 : 360;
+
+      for (const star of stars) {
+        star.pz = star.z;
+        star.z -= speed * dt;
+        if (star.z <= 1) {
+          resetStar(star, true);
+          continue;
+        }
+
+        const sx = cx() + (star.x / star.z) * FOCAL;
+        const sy = cy() + (star.y / star.z) * FOCAL;
+        const psx = cx() + (star.x / star.pz) * FOCAL;
+        const psy = cy() + (star.y / star.pz) * FOCAL;
+
+        if (
+          sx < -50 || sx > width + 50 ||
+          sy < -50 || sy > height + 50
+        ) {
+          if (star.z < DEPTH * 0.5) {
+            resetStar(star, true);
+            continue;
+          }
+        }
+
+        const depth = 1 - star.z / DEPTH;
+        const radius = Math.max(0.4, depth * 2.4);
+        const alpha = Math.min(1, depth * 1.4 + 0.1);
+        const [r, g, b] = star.color;
+
+        ctx.strokeStyle = `rgba(${r},${g},${b},${alpha})`;
+        ctx.lineWidth = radius;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(psx, psy);
+        ctx.lineTo(sx, sy);
+        ctx.stroke();
+
+        ctx.fillStyle = `rgba(${r},${g},${b},${Math.min(1, alpha + 0.2)})`;
+        ctx.beginPath();
+        ctx.arc(sx, sy, radius * 0.9, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      if (!prefersReducedMotion) {
+        raf = requestAnimationFrame(render);
+      }
+    };
+
+    init();
+    window.addEventListener("resize", resize);
+    raf = requestAnimationFrame(render);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", resize);
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />;
+}
+
 function TitleScreen({ onEnterLobby }) {
   return (
     <div className="fixed inset-0 z-40 isolate overflow-hidden bg-black text-white">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(103,232,249,0.16),transparent_28%),radial-gradient(circle_at_78%_18%,rgba(168,85,247,0.16),transparent_26%),linear-gradient(180deg,#02040a_0%,#050816_42%,#010205_100%)]" />
-      <div className="absolute inset-0 opacity-90">
-        <LoadingBackdrop />
-      </div>
+      <WarpStarfield />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent_38%,rgba(2,4,10,0.55)_100%)] pointer-events-none" />
       <div className="relative z-10 flex h-full items-center justify-center px-6">
         <div className="max-w-3xl text-center">
           <div className="text-[clamp(4rem,14vw,8.5rem)] font-black uppercase tracking-[0.22em] text-white drop-shadow-[0_0_28px_rgba(103,232,249,0.25)]">

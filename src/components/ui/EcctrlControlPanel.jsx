@@ -4,15 +4,14 @@ import { useMultiplayerState } from "../../multiplayer/party";
 import { useGamepadRef } from "./gamepadStore";
 
 const panelShell =
-  "w-[520px] max-w-[calc(100vw-1rem)] max-h-[min(90vh,54rem)] overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/92 text-white shadow-[0_24px_80px_rgba(0,0,0,0.5)]";
-const sectionShell = "rounded-[22px] border border-white/10 bg-white/[0.04] px-6 py-6";
+  "w-[min(94vw,820px)] max-h-[min(88vh,660px)] overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/95 text-white shadow-[0_24px_80px_rgba(0,0,0,0.6)] flex pointer-events-auto";
 
 function Slider({ label, value, min, max, step, onChange }) {
   return (
-    <label className={`${sectionShell} flex flex-col gap-3`}>
-      <div className="flex items-center justify-between gap-3 text-[22px] text-white/90">
+    <label className="rounded-[22px] border border-white/10 bg-white/[0.04] px-5 py-4 flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-3 text-[18px] text-white/90">
         <span className="font-black tracking-[-0.02em]">{label}</span>
-        <span className="font-mono text-[22px] text-white">
+        <span className="font-mono text-[18px] text-white">
           {typeof value === "number" ? value.toFixed(step < 1 ? 2 : 0) : value}
         </span>
       </div>
@@ -29,13 +28,13 @@ function Slider({ label, value, min, max, step, onChange }) {
   );
 }
 
-function Section({ title, children, eyebrow }) {
+function Section({ title, eyebrow, children }) {
   return (
-    <section className={sectionShell}>
-      <div className="mb-6 flex items-baseline justify-between gap-3">
+    <section className="rounded-[22px] border border-white/10 bg-white/[0.04] px-5 py-5">
+      <div className="mb-4 flex items-baseline justify-between gap-3">
         <div>
-          {eyebrow && <div className="text-[16px] font-bold uppercase tracking-[0.18em] text-cyan-300/90">{eyebrow}</div>}
-          <div className="mt-1 text-[46px] leading-none font-black tracking-[-0.04em] text-white">{title}</div>
+          {eyebrow && <div className="text-[14px] font-bold uppercase tracking-[0.18em] text-cyan-300/90">{eyebrow}</div>}
+          <div className="mt-1 text-[34px] leading-none font-black tracking-[-0.04em] text-white">{title}</div>
         </div>
       </div>
       <div className="space-y-3">{children}</div>
@@ -43,19 +42,19 @@ function Section({ title, children, eyebrow }) {
   );
 }
 
-function ActionButton({ children, onClick }) {
+function ActionButton({ children, onClick, className = "" }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="ui-button rounded-full border border-white/10 bg-white/[0.08] px-6 py-5 text-[22px] font-black uppercase tracking-[0.14em] text-white"
+      className={`ui-button rounded-full border border-white/10 bg-white/8 px-6 py-4 text-[18px] font-black uppercase tracking-[0.14em] text-white ${className}`}
     >
       {children}
     </button>
   );
 }
 
-export function EcctrlTuningPanel({ open, onClose, vehicleModel }) {
+export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false }) {
   const [tab, setTab] = useState("scene");
   const panelRef = useRef(null);
   const gamepadRef = useGamepadRef();
@@ -78,7 +77,6 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel }) {
       setTuning(getEcctrlTuningPreset(preset));
       return;
     }
-
     if (preset === "arcade") {
       setTuning({
         common: { speedMultiplier: 2.8, boostMultiplier: 1.55, jumpVelocity: 11, cameraDistance: 3.5, cameraHeight: 0.6, cameraTurnSpeed: 5.5 },
@@ -88,7 +86,6 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel }) {
       });
       return;
     }
-
     if (preset === "stable") {
       setTuning({
         common: { speedMultiplier: 1.8, boostMultiplier: 1.2, jumpVelocity: 9, cameraDistance: 3, cameraHeight: 0.45, cameraTurnSpeed: 4.2 },
@@ -98,7 +95,6 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel }) {
       });
       return;
     }
-
     if (preset === "fast") {
       setTuning({
         common: { speedMultiplier: 3.5, boostMultiplier: 1.7, jumpVelocity: 12, cameraDistance: 4, cameraHeight: 0.65, cameraTurnSpeed: 6.5 },
@@ -109,7 +105,8 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel }) {
     }
   };
 
-  const focusables = () => Array.from(panelRef.current?.querySelectorAll('button, input[type="range"]') ?? []);
+  const focusables = () =>
+    Array.from(panelRef.current?.querySelectorAll('button, input[type="range"]') ?? []);
 
   const focusAndReveal = (element) => {
     element?.focus();
@@ -148,8 +145,6 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel }) {
   useEffect(() => {
     if (!open) return;
 
-    if (typeof onClose !== "function") return;
-
     const id = requestAnimationFrame(() => {
       const activeTab = panelRef.current?.querySelector(`[data-tab="${tab}"]`);
       focusAndReveal(activeTab);
@@ -158,22 +153,19 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel }) {
     const onKeyDown = (event) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        onClose?.();
         return;
       }
-
       if (event.key === "ArrowUp") {
         event.preventDefault();
         moveFocus(-1);
         return;
       }
-
       if (event.key === "ArrowDown") {
         event.preventDefault();
         moveFocus(1);
         return;
       }
-
       if (event.key === "ArrowLeft") {
         if (nudgeRange(-1)) {
           event.preventDefault();
@@ -185,7 +177,6 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel }) {
           focusTab(tabs[(current - 1 + tabs.length) % tabs.length][0]);
         }
       }
-
       if (event.key === "ArrowRight") {
         if (nudgeRange(1)) {
           event.preventDefault();
@@ -204,9 +195,8 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel }) {
     let raf = 0;
     const pollGamepad = () => {
       const pad = gamepadRef.current;
-
       if (pad.justPressed.start || pad.justPressed.b) {
-        onClose();
+        onClose?.();
       } else if (pad.justPressed.up) {
         moveFocus(-1);
       } else if (pad.justPressed.down) {
@@ -241,7 +231,6 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel }) {
         const active = document.activeElement;
         if (active instanceof HTMLButtonElement) active.click();
       }
-
       raf = requestAnimationFrame(pollGamepad);
     };
 
@@ -257,105 +246,100 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel }) {
   if (!open) return null;
 
   return (
-    <div
-      ref={panelRef}
-      className={`${panelShell} pointer-events-auto`}
-      style={{ fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}
-    >
-          <div className="border-b border-white/10 px-7 py-6">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-[16px] font-bold uppercase tracking-[0.24em] text-cyan-300/90">System</div>
-                <div className="mt-1 text-[50px] leading-none font-black tracking-[-0.05em] text-white">Quick Tuning</div>
-                <div className="mt-3 text-[22px] text-white/75">Simple controls. Big labels.</div>
-              </div>
-            </div>
+    <div ref={panelRef} className={panelShell} style={{ fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+      <div className="flex-1 overflow-y-auto p-6 game-menu-scroll">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-[14px] font-bold uppercase tracking-[0.24em] text-cyan-300/90">Settings</div>
+            <div className="mt-1 text-[34px] leading-none font-black tracking-[-0.05em] text-white">Quick Tuning</div>
+            <div className="mt-2 text-[16px] text-white/75">Simple controls. Big labels.</div>
           </div>
+          <button
+            type="button"
+            onClick={() => onClose?.()}
+            className="ui-button rounded-full border border-white/10 bg-white/[0.08] px-5 py-3 text-[16px] font-black uppercase tracking-[0.16em] text-white"
+          >
+            Close
+          </button>
+        </div>
 
-          <div className="px-6 pt-6">
-            <div className="grid grid-cols-4 gap-3">
-              {tabs.map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setTab(key)}
-                  data-tab={key}
-                  className={`rounded-2xl border px-4 py-5 text-[20px] font-black uppercase tracking-[0.12em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/80 ${tab === key ? "border-cyan-300/40 bg-cyan-300/18 text-cyan-200" : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+        <div className="mt-5 grid grid-cols-4 gap-3">
+          {tabs.map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setTab(key)}
+              data-tab={key}
+              className={`rounded-2xl border px-4 py-4 text-[17px] font-black uppercase tracking-[0.12em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/80 ${
+                tab === key ? "border-cyan-300/40 bg-cyan-300/18 text-cyan-200" : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
-            <div className="mt-6 max-h-[calc(90vh-18rem)] overflow-y-auto pr-2 pb-6 game-menu-scroll">
-              {tab === "scene" && (
-                <div className="space-y-3">
-                  <Section title="World" eyebrow="Scene">
-                    <Slider label="Sun Angle" value={sunAngle} min={0} max={1} step={0.01} onChange={setSunAngle} />
-                  </Section>
-                </div>
-              )}
+        <div className="mt-5 max-h-[calc(88vh-18rem)] overflow-y-auto pr-2 game-menu-scroll">
+          {tab === "scene" && (
+            <Section title="World" eyebrow="Scene">
+              <Slider label="Sun Angle" value={sunAngle} min={0} max={1} step={0.01} onChange={setSunAngle} />
+            </Section>
+          )}
 
-              {tab === "core" && (
-                <div className="space-y-3">
-                  <Section title="Game Feel" eyebrow="Core">
-                    <Slider label="Overall Speed" value={tuning.common.speedMultiplier} min={0.5} max={5} step={0.01} onChange={(speedMultiplier) => setTuning({ common: { speedMultiplier } })} />
-                    <Slider label="Turbo" value={tuning.common.boostMultiplier ?? 1} min={1} max={2.5} step={0.01} onChange={(boostMultiplier) => setTuning({ common: { boostMultiplier } })} />
-                    <Slider label="Jump Height" value={tuning.common.jumpVelocity} min={3} max={20} step={0.01} onChange={(jumpVelocity) => setTuning({ common: { jumpVelocity } })} />
-                    <Slider label="Camera Distance" value={tuning.common.cameraDistance} min={2} max={8} step={0.01} onChange={(cameraDistance) => setTuning({ common: { cameraDistance } })} />
-                    <Slider label="Camera Smoothness" value={tuning.common.cameraSmoothTime} min={0.02} max={0.4} step={0.01} onChange={(cameraSmoothTime) => setTuning({ common: { cameraSmoothTime } })} />
-                  </Section>
-                </div>
-              )}
+          {tab === "core" && (
+            <Section title="Game Feel" eyebrow="Core">
+              <Slider label="Overall Speed" value={tuning.common.speedMultiplier} min={0.5} max={5} step={0.01} onChange={(speedMultiplier) => setTuning({ common: { speedMultiplier } })} />
+              <Slider label="Turbo" value={tuning.common.boostMultiplier ?? 1} min={1} max={2.5} step={0.01} onChange={(boostMultiplier) => setTuning({ common: { boostMultiplier } })} />
+              <Slider label="Jump Height" value={tuning.common.jumpVelocity} min={3} max={20} step={0.01} onChange={(jumpVelocity) => setTuning({ common: { jumpVelocity } })} />
+              <Slider label="Camera Distance" value={tuning.common.cameraDistance} min={2} max={8} step={0.01} onChange={(cameraDistance) => setTuning({ common: { cameraDistance } })} />
+              <Slider label="Camera Smoothness" value={tuning.common.cameraSmoothTime} min={0.02} max={0.4} step={0.01} onChange={(cameraSmoothTime) => setTuning({ common: { cameraSmoothTime } })} />
+            </Section>
+          )}
 
-              {tab === "ride" && (
-                <div className="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(220px,0.85fr)] items-start">
-                  <Section title="Ride Feel" eyebrow="Ride">
-                    <Slider label="Drive Power" value={tuning.board.speedMultiplier} min={0.5} max={3} step={0.01} onChange={(speedMultiplier) => setTuning({ board: { speedMultiplier } })} />
-                    <Slider label="Grip" value={tuning.board.tireGripFactor} min={1} max={4} step={0.01} onChange={(tireGripFactor) => setTuning({ board: { tireGripFactor } })} />
-                    <Slider label="Stability" value={tuning.board.dampingC} min={3000} max={12000} step={50} onChange={(dampingC) => setTuning({ board: { dampingC } })} />
-                  </Section>
-
-                  <div className="space-y-3">
-                    <Section title="Vehicle" eyebrow="Current">
-                      {vehicleModel && (
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-5 text-[18px] text-white/75 leading-snug">
-                          Active vehicle
-                          <div className="mt-1 text-[28px] font-black tracking-[-0.04em] text-white">{vehicleModel}</div>
-                          {ECCTRL_VEHICLE_TUNING_PRESETS[vehicleModel] && (
-                            <div className="mt-3 text-[17px] text-cyan-200/90">
-                              Auto preset: <span className="font-black uppercase tracking-[0.12em]">{ECCTRL_VEHICLE_TUNING_PRESETS[vehicleModel]}</span>
-                            </div>
-                          )}
+          {tab === "ride" && (
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(220px,0.85fr)] items-start">
+              <Section title="Ride Feel" eyebrow="Ride">
+                <Slider label="Drive Power" value={tuning.board.speedMultiplier} min={0.5} max={3} step={0.01} onChange={(speedMultiplier) => setTuning({ board: { speedMultiplier } })} />
+                <Slider label="Grip" value={tuning.board.tireGripFactor} min={1} max={4} step={0.01} onChange={(tireGripFactor) => setTuning({ board: { tireGripFactor } })} />
+                <Slider label="Stability" value={tuning.board.dampingC} min={3000} max={12000} step={50} onChange={(dampingC) => setTuning({ board: { dampingC } })} />
+              </Section>
+              <div className="space-y-3">
+                <Section title="Vehicle" eyebrow="Current">
+                  {vehicleModel && (
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 text-[16px] text-white/75 leading-snug">
+                      Active vehicle
+                      <div className="mt-1 text-[24px] font-black tracking-[-0.04em] text-white">{vehicleModel}</div>
+                      {ECCTRL_VEHICLE_TUNING_PRESETS[vehicleModel] && (
+                        <div className="mt-2 text-[15px] text-cyan-200/90">
+                          Auto preset: <span className="font-black uppercase tracking-[0.12em]">{ECCTRL_VEHICLE_TUNING_PRESETS[vehicleModel]}</span>
                         </div>
                       )}
-                      <div className="grid grid-cols-2 gap-2">
-                        <ActionButton onClick={() => applyPreset("car")}>Car</ActionButton>
-                        <ActionButton onClick={() => applyPreset("drone")}>Drone</ActionButton>
-                      </div>
-                    </Section>
-
-                    <Section title="Presets" eyebrow="Fast Swap">
-                      <div className="grid grid-cols-3 gap-2">
-                        <ActionButton onClick={() => applyPreset("stable")}>Stable</ActionButton>
-                        <ActionButton onClick={() => applyPreset("arcade")}>Arcade</ActionButton>
-                        <ActionButton onClick={() => applyPreset("fast")}>Fast</ActionButton>
-                      </div>
-                    </Section>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-2">
+                    <ActionButton onClick={() => applyPreset("car")}>Car</ActionButton>
+                    <ActionButton onClick={() => applyPreset("drone")}>Drone</ActionButton>
                   </div>
-                </div>
-              )}
-
-              {tab === "air" && (
-                <div className="space-y-3">
-                  <Section title="Drone Feel" eyebrow="Air">
-                    <Slider label="Lift" value={tuning.drone.maxThrust} min={3000} max={9000} step={10} onChange={(maxThrust) => setTuning({ drone: { maxThrust } })} />
-                    <Slider label="Cruise Speed" value={tuning.drone.maxHorizSpeed} min={8} max={40} step={0.01} onChange={(maxHorizSpeed) => setTuning({ drone: { maxHorizSpeed } })} />
-                  </Section>
-                </div>
-              )}
+                </Section>
+                <Section title="Presets" eyebrow="Fast Swap">
+                  <div className="grid grid-cols-3 gap-2">
+                    <ActionButton onClick={() => applyPreset("stable")}>Stable</ActionButton>
+                    <ActionButton onClick={() => applyPreset("arcade")}>Arcade</ActionButton>
+                    <ActionButton onClick={() => applyPreset("fast")}>Fast</ActionButton>
+                  </div>
+                </Section>
+              </div>
             </div>
-          </div>
+          )}
+
+          {tab === "air" && (
+            <Section title="Drone Feel" eyebrow="Air">
+              <Slider label="Lift" value={tuning.drone.maxThrust} min={3000} max={9000} step={10} onChange={(maxThrust) => setTuning({ drone: { maxThrust } })} />
+              <Slider label="Cruise Speed" value={tuning.drone.maxHorizSpeed} min={8} max={40} step={0.01} onChange={(maxHorizSpeed) => setTuning({ drone: { maxHorizSpeed } })} />
+            </Section>
+          )}
         </div>
+      </div>
+    </div>
   );
 }

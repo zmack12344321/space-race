@@ -3,6 +3,9 @@ import { useGamepadRef } from "./gamepadStore";
 import { EcctrlTuningPanel } from "./EcctrlControlPanel";
 import { ControlsScreen } from "./ControlsData";
 
+const STICK_NAV = 0.55;
+const NAV_REPEAT = 220;
+
 const MENU_ITEMS = [
   { key: "resume", label: "Resume" },
   { key: "controls", label: "Controls" },
@@ -15,16 +18,13 @@ export function PauseMenu({ open, onResume, onQuit, vehicleModel }) {
   const gamepadRef = useGamepadRef();
   const buttonRefs = useRef([]);
   const [focused, setFocused] = useState(0);
-  const focusedRef = useRef(0);
-
-  useEffect(() => {
-    focusedRef.current = focused;
-  }, [focused]);
+  const focusIndex = useRef(0);
 
   useEffect(() => {
     if (open) {
       setView("main");
       setFocused(0);
+      focusIndex.current = 0;
     }
   }, [open]);
 
@@ -36,42 +36,73 @@ export function PauseMenu({ open, onResume, onQuit, vehicleModel }) {
   };
 
   useEffect(() => {
-    if (!open || view === "settings") return;
+    if (!open || view !== "main") return;
 
-    const focusCurrent = () => buttonRefs.current[focusedRef.current]?.focus();
+    const focusCurrent = () => buttonRefs.current[focusIndex.current]?.focus();
 
     const onKeyDown = (event) => {
       if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
         event.preventDefault();
-        setFocused((f) => (f - 1 + MENU_ITEMS.length) % MENU_ITEMS.length);
+        focusIndex.current = (focusIndex.current - 1 + MENU_ITEMS.length) % MENU_ITEMS.length;
+        setFocused(focusIndex.current);
+        buttonRefs.current[focusIndex.current]?.focus();
       } else if (event.key === "ArrowDown" || event.key === "ArrowRight") {
         event.preventDefault();
-        setFocused((f) => (f + 1) % MENU_ITEMS.length);
+        focusIndex.current = (focusIndex.current + 1) % MENU_ITEMS.length;
+        setFocused(focusIndex.current);
+        buttonRefs.current[focusIndex.current]?.focus();
       } else if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        activate(MENU_ITEMS[focusedRef.current].key);
+        activate(MENU_ITEMS[focusIndex.current].key);
       } else if (event.key === "Escape") {
         event.preventDefault();
-        if (view === "controls") setView("main");
-        else onResume();
+        onResume();
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
 
+    const pad0 = gamepadRef.current;
+    const held = {
+      up: pad0.buttons.up || pad0.axes.ly < -STICK_NAV,
+      down: pad0.buttons.down || pad0.axes.ly > STICK_NAV,
+      left: pad0.buttons.left || pad0.axes.lx < -STICK_NAV,
+      right: pad0.buttons.right || pad0.axes.lx > STICK_NAV,
+      a: pad0.buttons.a,
+      back: pad0.buttons.b || pad0.buttons.start,
+    };
+    const repeatAt = { up: 0, down: 0, left: 0, right: 0 };
     let raf = 0;
     const tick = () => {
       const pad = gamepadRef.current;
-      if (pad.justPressed.up || pad.justPressed.left) {
-        setFocused((f) => (f - 1 + MENU_ITEMS.length) % MENU_ITEMS.length);
-      } else if (pad.justPressed.down || pad.justPressed.right) {
-        setFocused((f) => (f + 1) % MENU_ITEMS.length);
-      } else if (pad.justPressed.a) {
-        activate(MENU_ITEMS[focusedRef.current].key);
-      } else if (pad.justPressed.b || pad.justPressed.start) {
-        if (view === "controls") setView("main");
-        else onResume();
-      }
+      const now = performance.now();
+      const active = {
+        up: pad.buttons.up || pad.axes.ly < -STICK_NAV,
+        down: pad.buttons.down || pad.axes.ly > STICK_NAV,
+        left: pad.buttons.left || pad.axes.lx < -STICK_NAV,
+        right: pad.buttons.right || pad.axes.lx > STICK_NAV,
+        a: pad.buttons.a,
+        back: pad.buttons.b || pad.buttons.start,
+      };
+      const fire = (key, fn) => {
+        if (active[key] && (!held[key] || now >= repeatAt[key])) {
+          fn();
+          repeatAt[key] = now + (held[key] ? NAV_REPEAT : 260);
+        }
+      };
+      fire("up", () => {
+        focusIndex.current = (focusIndex.current - 1 + MENU_ITEMS.length) % MENU_ITEMS.length;
+        setFocused(focusIndex.current);
+        buttonRefs.current[focusIndex.current]?.focus();
+      });
+      fire("down", () => {
+        focusIndex.current = (focusIndex.current + 1) % MENU_ITEMS.length;
+        setFocused(focusIndex.current);
+        buttonRefs.current[focusIndex.current]?.focus();
+      });
+      if (active.a && !held.a) activate(MENU_ITEMS[focusIndex.current].key);
+      if (active.back && !held.back) onResume();
+      Object.assign(held, active);
       raf = requestAnimationFrame(tick);
     };
 
@@ -104,7 +135,7 @@ export function PauseMenu({ open, onResume, onQuit, vehicleModel }) {
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center overflow-hidden p-4 pointer-events-none">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm pointer-events-auto" onClick={handleBackdrop} aria-hidden="true" />
-      <div className="relative z-10 w-[min(92vw,560px)] pointer-events-auto rounded-[2rem] border border-white/10 bg-slate-950/92 p-7 text-white shadow-[0_30px_100px_rgba(0,0,0,0.6)] backdrop-blur-xl">
+      <div className={`controls-font relative z-10 ${view === "controls" ? "w-[min(96vw,1120px)]" : "w-[min(92vw,560px)]"} pointer-events-auto rounded-[2rem] border border-white/10 bg-slate-950/92 p-7 text-white shadow-[0_30px_100px_rgba(0,0,0,0.6)] backdrop-blur-xl`}>
         {view === "main" && (
           <>
             <div className="text-[16px] font-bold uppercase tracking-[0.28em] text-cyan-300/90">Game Paused</div>

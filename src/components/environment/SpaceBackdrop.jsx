@@ -331,6 +331,10 @@ function CelestialBody({
   speed = 0.12,
   ring = false,
   style = 0,
+  scaleMultiplier = 1,
+  brightnessMultiplier = 1,
+  driftMultiplier = 1,
+  atmosphereMultiplier = 1,
   floatRange = [-0.08, 0.08],
   atmosphere = 1.05,
   noiseScale = 5,
@@ -350,8 +354,8 @@ function CelestialBody({
   });
 
   return (
-    <Float speed={speed} rotationIntensity={0.12} floatIntensity={0.2} floatingRange={floatRange}>
-      <group position={position} scale={scale}>
+    <Float speed={speed * driftMultiplier} rotationIntensity={0.12} floatIntensity={0.2} floatingRange={floatRange}>
+      <group position={position} scale={scale * scaleMultiplier}>
         <mesh>
           <sphereGeometry args={[1, 48, 48]} />
           <planetMaterial
@@ -363,12 +367,12 @@ function CelestialBody({
             uStyle={style}
             uNoiseScale={noiseScale}
             uBandScale={bandScale}
-            uBrightness={brightness}
+            uBrightness={brightness * brightnessMultiplier}
             uRimStrength={rimStrength}
             toneMapped={false}
           />
         </mesh>
-        <mesh scale={atmosphere}>
+        <mesh scale={atmosphere * atmosphereMultiplier}>
           <sphereGeometry args={[1, 48, 48]} />
           <meshBasicMaterial color={accentColor} transparent opacity={0.06} blending={THREE.AdditiveBlending} depthWrite={false} fog={false} />
         </mesh>
@@ -383,9 +387,15 @@ function CelestialBody({
   );
 }
 
-function SunCluster() {
+function SunCluster({
+  megaScale = 920,
+  planetScaleMultiplier = 1,
+  brightnessMultiplier = 1,
+  driftMultiplier = 1,
+  glowMultiplier = 1,
+}) {
   const planets = [
-    { position: [-1850, 1480, -2380], scale: 920, color: "#6b577f", accent: "#ceb7ff", shadow: "#1e152c", speed: 0.004, atmosphere: 1.085, noiseScale: 3.6, bandScale: 19, brightness: 0.26, rimStrength: 0.02, style: 0 },
+    { position: [-1850, 1480, -2380], scale: megaScale, color: "#6b577f", accent: "#ceb7ff", shadow: "#1e152c", speed: 0.004, atmosphere: 1.085, noiseScale: 3.6, bandScale: 19, brightness: 0.26, rimStrength: 0.02, style: 0 },
     { position: [-1320, 520, -1600], scale: 220, color: "#6a548b", accent: "#d4b9ff", shadow: "#1d142f", speed: 0.014, atmosphere: 1.08, noiseScale: 4.2, bandScale: 18, brightness: 0.38, rimStrength: 0.04, style: 0 },
     { position: [-420, 410, -980], scale: 122, color: "#8b6340", accent: "#f3c98b", shadow: "#2f1b10", speed: 0.028, ring: true, atmosphere: 1.05, noiseScale: 6.7, bandScale: 6, brightness: 0.4, rimStrength: 0.035, style: 1 },
     { position: [430, 560, -1220], scale: 164, color: "#4f71a3", accent: "#c8e1ff", shadow: "#10243a", speed: 0.02, atmosphere: 1.06, noiseScale: 4.7, bandScale: 14, brightness: 0.38, rimStrength: 0.04, style: 2 },
@@ -403,19 +413,19 @@ function SunCluster() {
   return (
     <group>
       {planets.map((planet, index) => (
-        <CelestialBody key={index} {...planet} />
+        <CelestialBody key={index} {...planet} scaleMultiplier={planetScaleMultiplier} brightnessMultiplier={brightnessMultiplier} driftMultiplier={driftMultiplier} atmosphereMultiplier={glowMultiplier} />
       ))}
       <mesh position={[-1850, 1480, -2380]}>
         <sphereGeometry args={[1.08, 64, 64]} />
-        <meshBasicMaterial color="#dbcafc" transparent opacity={0.03} blending={THREE.AdditiveBlending} depthWrite={false} fog={false} />
+        <meshBasicMaterial color="#dbcafc" transparent opacity={0.03 * glowMultiplier} blending={THREE.AdditiveBlending} depthWrite={false} fog={false} />
       </mesh>
       <mesh position={[-1320, 340, -1600]}>
         <sphereGeometry args={[1.6, 64, 64]} />
-        <meshBasicMaterial color="#cdb8ff" transparent opacity={0.045} blending={THREE.AdditiveBlending} depthWrite={false} fog={false} />
+        <meshBasicMaterial color="#cdb8ff" transparent opacity={0.045 * glowMultiplier} blending={THREE.AdditiveBlending} depthWrite={false} fog={false} />
       </mesh>
-      <pointLight position={[-1320, 340, -1600]} color="#d4b7ff" intensity={10} distance={800} />
-      <pointLight position={[1780, 270, -300]} color="#ff6b35" intensity={8} distance={700} />
-      <pointLight position={[-560, 300, 1520]} color="#66e0a3" intensity={7} distance={700} />
+      <pointLight position={[-1320, 340, -1600]} color="#d4b7ff" intensity={10 * glowMultiplier} distance={800} />
+      <pointLight position={[1780, 270, -300]} color="#ff6b35" intensity={8 * glowMultiplier} distance={700} />
+      <pointLight position={[-560, 300, 1520]} color="#66e0a3" intensity={7 * glowMultiplier} distance={700} />
     </group>
   );
 }
@@ -463,7 +473,7 @@ function ShootingStarField() {
   );
 }
 
-function SkyShell() {
+function SkyShell({ glowMultiplier = 1 }) {
   const camera = useThree((state) => state.camera);
   const skyRef = useRef();
 
@@ -479,15 +489,15 @@ function SkyShell() {
       <Stars radius={1000} depth={450} count={12000} factor={4} saturation={0} fade speed={0.06} />
       <Stars radius={650} depth={180} count={4200} factor={2} saturation={0} fade speed={0.32} />
       <Stars radius={320} depth={90} count={1400} factor={1.2} saturation={0.15} fade speed={0.7} />
-      <Sparkles count={180} scale={[160, 90, 160]} size={3.5} speed={0.08} noise={1.0} color="#7fd4ff" opacity={0.18} position={[-60, 40, -220]} />
-      <Sparkles count={140} scale={[130, 70, 130]} size={4} speed={0.12} noise={1.3} color="#ffd28a" opacity={0.12} position={[140, 70, -320]} />
-      <Sparkles count={80} scale={[100, 40, 100]} size={2.5} speed={0.06} noise={0.7} color="#dcecff" opacity={0.12} position={[0, 110, -180]} />
+      <Sparkles count={180} scale={[160, 90, 160]} size={3.5} speed={0.08} noise={1.0} color="#7fd4ff" opacity={0.18 * glowMultiplier} position={[-60, 40, -220]} />
+      <Sparkles count={140} scale={[130, 70, 130]} size={4} speed={0.12} noise={1.3} color="#ffd28a" opacity={0.12 * glowMultiplier} position={[140, 70, -320]} />
+      <Sparkles count={80} scale={[100, 40, 100]} size={2.5} speed={0.06} noise={0.7} color="#dcecff" opacity={0.12 * glowMultiplier} position={[0, 110, -180]} />
       <ShootingStarField />
     </group>
   );
 }
 
-function WorldBodies() {
+function WorldBodies({ megaScale, planetScaleMultiplier, brightnessMultiplier, driftMultiplier, glowMultiplier }) {
   const camera = useThree((state) => state.camera);
   const ref = useRef();
 
@@ -503,16 +513,28 @@ function WorldBodies() {
       <DistantComet speed={0.031} offset={0.37} color="#ffe7a8" y={155} depth={-240} />
       <DistantComet speed={0.058} offset={0.68} color="#9fd8ff" y={118} depth={-120} />
       <FlybyUfo />
-      <SunCluster />
+      <SunCluster megaScale={megaScale} planetScaleMultiplier={planetScaleMultiplier} brightnessMultiplier={brightnessMultiplier} driftMultiplier={driftMultiplier} glowMultiplier={glowMultiplier} />
     </group>
   );
 }
 
-export function SpaceBackdrop() {
+export function SpaceBackdrop({
+  megaScale = 920,
+  planetScaleMultiplier = 1,
+  brightnessMultiplier = 1,
+  driftMultiplier = 1,
+  glowMultiplier = 1,
+}) {
   return (
     <>
-      <SkyShell />
-      <WorldBodies />
+      <SkyShell glowMultiplier={glowMultiplier} />
+      <WorldBodies
+        megaScale={megaScale}
+        planetScaleMultiplier={planetScaleMultiplier}
+        brightnessMultiplier={brightnessMultiplier}
+        driftMultiplier={driftMultiplier}
+        glowMultiplier={glowMultiplier}
+      />
     </>
   );
 }

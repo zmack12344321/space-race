@@ -1,4 +1,4 @@
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { CuboidCollider, CylinderCollider, useBeforePhysicsStep, useRapier } from "@react-three/rapier";
 import { EcctrlCameraControls } from "ecctrl/camera";
 import { useButtonStore, useJoystickStore } from "ecctrl/input";
@@ -22,8 +22,10 @@ import { GameReadyAtom } from "../ui/debugState";
 import { useSetAtom } from "jotai";
 import { PlayerNameTag } from "../environment/PlayerNameTag";
 import { useGamepadRef } from "../ui/gamepadStore";
+import { usePlayerSettings } from "../ui/playerSettingsStore";
 
 const ARCADE_JUMP_IMPULSE = 360;
+const WORLD_UP = new Vector3(0, 1, 0);
 function joystickToVehicleInput(controls) {
   if (!controls.isJoystickPressed()) return { x: 0, y: 0 };
   const angle = controls.angle();
@@ -130,13 +132,21 @@ function DroneControllerBody({ drone, paused, boostMultiplier = 1 }) {
   );
 }
 
-export const RiderController = ({ state, controls, getGroundHeight, debugMode = false }) => {
+export const RiderController = ({ state, controls, getGroundHeight, debugMode = false, onFire }) => {
   const vehicle = useRef();
   const cameraControls = useRef();
   const cameraUp = useRef(new Vector3(0, 1, 0));
   const cameraCurrDir = useRef(new Vector3());
   const cameraFinalDir = useRef(new Vector3());
   const cameraTurnCrossAxis = useRef(new Vector3());
+  const yawCrossAxis = useRef(new Vector3());
+  const mouseLook = useRef({ x: 0, y: 0 });
+  const pointerLocked = useRef(false);
+  const fireHeld = useRef(false);
+  const onFireRef = useRef(onFire);
+  onFireRef.current = onFire;
+  const mouseButtonsConfigured = useRef(false);
+  const gl = useThree((s) => s.gl);
   const me = myPlayer();
   const isLocal = me?.id === state.id;
   const [vehicleModel] = usePlayerState(state, "vehicle");
@@ -156,10 +166,14 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
     back: false,
     left: false,
     right: false,
+    up: false,
+    down: false,
     boost: false,
     jump: false,
     handbrake: false,
   });
+  const isDroneRef = useRef(isDrone);
+  isDroneRef.current = isDrone;
   const lastRespawnAt = useRef(0);
   const respawnIndex = useRef(0);
   const spawnPoint = useRef(null);
@@ -274,6 +288,8 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
     keys.current.back = false;
     keys.current.left = false;
     keys.current.right = false;
+    keys.current.up = false;
+    keys.current.down = false;
     keys.current.boost = false;
     keys.current.handbrake = false;
     setBoostActive(false);
@@ -303,6 +319,57 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
 
   useEffect(() => {
     if (!isLocal) return;
+    const canvas = gl.domElement;
+
+    const onMouseMove = (e) => {
+      if (document.pointerLockElement !== canvas) return;
+      mouseLook.current.x += e.movementX;
+      mouseLook.current.y += e.movementY;
+    };
+    const onMouseDown = (e) => {
+      if (e.button !== 0) return;
+      if (document.pointerLockElement !== canvas) return;
+      fireHeld.current = true;
+      onFireRef.current?.();
+    };
+    const onMouseUp = (e) => {
+      if (e.button === 0) fireHeld.current = false;
+    };
+    const onCanvasClick = () => {
+      if (menuOpen || gamepadRef.current.connected) return;
+      if (document.pointerLockElement !== canvas) {
+        try {
+          canvas.requestPointerLock();
+        } catch {
+          /* pointer lock request can reject if called too soon after exit */
+        }
+      }
+    };
+    const onLockChange = () => {
+      pointerLocked.current = document.pointerLockElement === canvas;
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mouseup", onMouseUp);
+    canvas.addEventListener("click", onCanvasClick);
+    document.addEventListener("pointerlockchange", onLockChange);
+
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mouseup", onMouseUp);
+      canvas.removeEventListener("click", onCanvasClick);
+      document.removeEventListener("pointerlockchange", onLockChange);
+    };
+  }, [isLocal, gl, menuOpen, gamepadRef]);
+
+  useEffect(() => {
+    if (menuOpen && document.pointerLockElement) document.exitPointerLock();
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!isLocal) return;
 
     const isTypingTarget = (target) =>
       target?.tagName === "INPUT" ||
@@ -312,15 +379,19 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
       const setKey = (event, pressed) => {
         if (isTypingTarget(event.target)) return;
         const code = event.code;
-        if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space", "ShiftLeft", "ShiftRight", "KeyE"].includes(code)) {
+        if (["KeyW", "KeyA", "KeyS", "KeyD", "Space", "KeyC", "ShiftLeft", "ShiftRight", "KeyE"].includes(code)) {
           event.preventDefault();
         }
-        if (code === "KeyW" || code === "ArrowUp") keys.current.forward = pressed;
-        if (code === "KeyS" || code === "ArrowDown") keys.current.back = pressed;
-        if (code === "KeyA" || code === "ArrowLeft") keys.current.left = pressed;
-        if (code === "KeyD" || code === "ArrowRight") keys.current.right = pressed;
+        if (code === "KeyW") keys.current.forward = pressed;
+        if (code === "KeyS") keys.current.back = pressed;
+        if (code === "KeyA") keys.current.left = pressed;
+        if (code === "KeyD") keys.current.right = pressed;
+        if (code === "Space") {
+          keys.current.up = pressed;
+          if (!isDroneRef.current) jumpRequested.current = true;
+        }
+        if (code === "KeyC") keys.current.down = pressed;
         if (code === "ShiftLeft" || code === "ShiftRight") keys.current.boost = pressed;
-        if (code === "Space" && pressed) jumpRequested.current = true;
         if (code === "KeyE") keys.current.handbrake = pressed;
       };
 
@@ -379,6 +450,8 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
         brake: true,
         joystickL: { x: 0, y: 0 },
       });
+      mouseLook.current.x = 0;
+      mouseLook.current.y = 0;
       return;
     }
 
@@ -386,7 +459,8 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
     const joystickL = mergedJoystickInput(controls, ecctrlJoystick.current);
     const gamepadForward = pad.axes.rt > 0.12;
     const gamepadBack = pad.axes.lt > 0.12;
-    const gamepadSteer = pad.axes.lx;
+    const settings = usePlayerSettings.getState();
+    const gamepadSteer = settings.invertSteering ? -pad.axes.lx : pad.axes.lx;
     const boostHeld = keys.current.boost || ecctrlButtons.current.b4 || pad.buttons.y;
     if (boostHeld !== boostActive) setBoostActive(boostHeld);
     const linvel = cachedBodyState.current.linvel;
@@ -397,15 +471,31 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
       if (isLocal && isSpawned) {
         if (cameraControls.current) {
           cameraControls.current.moveTo(handle.currPos.x, handle.currPos.y + tuning.common.cameraHeight, handle.currPos.z, true);
-          cameraUp.current.copy(handle.upAxis);
+          cameraUp.current.copy(isDrone ? WORLD_UP : handle.upAxis);
           camera.up.lerp(cameraUp.current, 0.1);
           cameraControls.current.setUp(camera.up);
 
+          const turn = tuning.common.cameraTurnSpeed * 0.4 * delta * (settings.lookSensitivity ?? 1);
           if (Math.abs(pad.axes.rx) > 0.08) {
-            cameraControls.current.rotate(pad.axes.rx * tuning.common.cameraTurnSpeed * 0.4 * delta, 0, true);
+            cameraControls.current.rotate((settings.invertLookX ? -pad.axes.rx : pad.axes.rx) * turn, 0, true);
           }
           if (Math.abs(pad.axes.ry) > 0.08) {
-            cameraControls.current.rotate(0, -pad.axes.ry * tuning.common.cameraTurnSpeed * 0.4 * delta, true);
+            cameraControls.current.rotate(0, (settings.invertLookY ? pad.axes.ry : -pad.axes.ry) * turn, true);
+          }
+
+          if (!mouseButtonsConfigured.current && cameraControls.current) {
+            cameraControls.current.mouseButtons.left = -1;
+            mouseButtonsConfigured.current = true;
+          }
+
+          if (mouseLook.current.x !== 0 || mouseLook.current.y !== 0) {
+            const sens = settings.lookSensitivity ?? 1;
+            const k = 0.0025;
+            const mx = (settings.invertLookX ? -mouseLook.current.x : mouseLook.current.x) * k * sens;
+            const my = (settings.invertLookY ? mouseLook.current.y : -mouseLook.current.y) * k * sens;
+            cameraControls.current.rotate(mx, my, true);
+            mouseLook.current.x = 0;
+            mouseLook.current.y = 0;
           }
 
           const forwardInput = !isDrone && (keys.current.forward || ecctrlButtons.current.b3 || gamepadForward || joystickL.y > 0.2);
@@ -423,16 +513,38 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
         }
 
       if (isDrone) {
+        const stickFwd = -pad.axes.ly;
+        const stickStrafe = settings.invertSteering ? -pad.axes.lx : pad.axes.lx;
+        const mobile = ecctrlJoystick.current.active ? joystickL : { x: 0, y: 0 };
+
+        const pitchForward = keys.current.forward || stickFwd > 0.2 || mobile.y > 0.2;
+        const pitchBackward = keys.current.back || stickFwd < -0.2 || mobile.y < -0.2;
+        const rollLeft = keys.current.left || stickStrafe < -0.2 || mobile.x < -0.2;
+        const rollRight = keys.current.right || stickStrafe > 0.2 || mobile.x > 0.2;
+        const throttleUp = keys.current.up || pad.buttons.a;
+        const throttleDown = keys.current.down || pad.buttons.b;
+
+        let autoYaw = 0;
+        if (cameraControls.current) {
+          camera.getWorldDirection(cameraCurrDir.current).projectOnPlane(WORLD_UP).normalize();
+          cameraFinalDir.current.copy(handle.bodyZAxis).projectOnPlane(WORLD_UP).normalize();
+          const cross = yawCrossAxis.current.crossVectors(cameraFinalDir.current, cameraCurrDir.current).dot(WORLD_UP);
+          const dot = Math.max(-1, Math.min(1, cameraFinalDir.current.dot(cameraCurrDir.current)));
+          const yawError = Math.atan2(cross, dot);
+          autoYaw = Math.max(-1, Math.min(1, yawError * 1.5));
+        }
+
         handle.setMovement({
-          throttleUp: keys.current.forward || ecctrlButtons.current.b3 || gamepadForward,
-          throttleDown: backIsBrake ? false : backPressed,
-          yawLeft: keys.current.left,
-          yawRight: keys.current.right,
-          pitchForward: keys.current.forward || ecctrlButtons.current.b3 || gamepadForward,
-          pitchBackward: backIsBrake ? false : backPressed,
-          rollLeft: keys.current.left || gamepadSteer < -0.2,
-          rollRight: keys.current.right || gamepadSteer > 0.2,
-          joystickL,
+          throttleUp,
+          throttleDown,
+          yawLeft: false,
+          yawRight: false,
+          pitchForward,
+          pitchBackward,
+          rollLeft,
+          rollRight,
+          joystickL: { x: -autoYaw, y: 0 },
+          joystickR: mobile,
         });
       } else {
         handle.setMovement({
@@ -445,7 +557,7 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
         });
       }
 
-      if ((jumpRequested.current || ecctrlButtons.current.b2 || pad.justPressed.a) && handle.isOnGround) {
+      if (!isDroneRef.current && (jumpRequested.current || ecctrlButtons.current.b2 || pad.justPressed.a) && handle.isOnGround) {
         const now = performance.now();
         if (now - lastJumpAt.current > 650) {
           const lv = cachedBodyState.current.linvel;

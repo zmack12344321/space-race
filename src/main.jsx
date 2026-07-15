@@ -48,7 +48,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
 
 insertCoin({
   skipLobby: true,
-  offline: window.location.pathname.startsWith("/test"),
+  offline: window.location.pathname.startsWith("/test") || window.location.pathname.startsWith("/shader"),
 }).catch((error) => {
   console.error("Failed to initialize multiplayer:", error);
 });

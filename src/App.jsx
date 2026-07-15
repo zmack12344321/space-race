@@ -6,11 +6,17 @@ import { Experience } from "./components/core/Experience";
 import { UI } from "./components/ui/UI";
 import { PhysicsDebugAtom } from "./components/ui/debugState";
 import { useMultiplayerState } from "./multiplayer/party";
+import { ShaderPreview } from "./components/environment/ShaderPreview";
 
 function App() {
   const isTestMode = window.location.pathname.startsWith("/test");
-  useMultiplayerState("gameState", isTestMode ? "game" : "title");
+  const isShaderPreview = window.location.pathname.startsWith("/shader");
+  useMultiplayerState("gameState", isTestMode || isShaderPreview ? "game" : "title");
   const [physicsDebug] = useAtom(PhysicsDebugAtom);
+
+  if (isShaderPreview) {
+    return <ShaderPreview />;
+  }
 
   return (
     <>
