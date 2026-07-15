@@ -6,7 +6,7 @@ import { EcctrlVehicle, ShapeCastWheel, ThrustPropeller } from "ecctrl/vehicle";
 import { myPlayer, usePlayerState } from "../../multiplayer/party";
 import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Vector3 } from "three";
+import { Quaternion, Vector3 } from "three";
 import { randInt } from "three/src/math/MathUtils";
 import { Rider } from "./Rider";
 import { getLunarSpawnPoint } from "../../utils/lunarHeightfield";
@@ -26,6 +26,19 @@ import { usePlayerSettings } from "../ui/playerSettingsStore";
 
 const ARCADE_JUMP_IMPULSE = 360;
 const WORLD_UP = new Vector3(0, 1, 0);
+
+// Reused temps to avoid per-frame allocations (GC stutter).
+const _qPrev = new Quaternion();
+const _qTarget = new Quaternion();
+
+function hashStringToSlot(id, mod = 64) {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return Math.abs(h) % mod;
+}
 function joystickToVehicleInput(controls) {
   if (!controls.isJoystickPressed()) return { x: 0, y: 0 };
   const angle = controls.angle();
@@ -175,8 +188,9 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
   const isDroneRef = useRef(isDrone);
   isDroneRef.current = isDrone;
   const lastRespawnAt = useRef(0);
-  const respawnIndex = useRef(0);
   const spawnPoint = useRef(null);
+  const remotePrev = useRef(null);
+  const remoteTarget = useRef(null);
   const lastJumpAt = useRef(0);
   const lastDebugAt = useRef(0);
   const jumpRequested = useRef(false);
@@ -408,10 +422,11 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
   const respawn = () => {
     const body = vehicle.current?.body;
     if (!isLocal || !body) return;
+    const slot = me.getState("slot");
+    const slotIndex = typeof slot === "number" && Number.isFinite(slot) ? slot : hashStringToSlot(me.id);
     const point = getGroundHeight
       ? getLunarSpawnPoint({
-          lastSpawn: spawnPoint.current,
-          respawnIndex: respawnIndex.current,
+          respawnIndex: slotIndex,
           groundHeight: getGroundHeight,
         })
       : {
@@ -420,7 +435,6 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
           z: randInt(-10, 10) * 5,
         };
 
-    respawnIndex.current += 1;
     spawnPoint.current = point;
 
     body.setTranslation({ x: point.x, y: point.y, z: point.z }, true);
@@ -624,21 +638,40 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
           });
         }
       }
-    } else {
-      const pos = state.getState("pos");
-      if (pos) {
-        const current = cachedBodyState.current.pos;
-        handle.body.setTranslation({
-          x: current.x + (pos.x - current.x) * 0.35,
-          y: current.y + (pos.y - current.y) * 0.35,
-          z: current.z + (pos.z - current.z) * 0.35,
-        }, true);
-        const rot = state.getState("rot");
-        if (rot) handle.body.setRotation(rot, true);
-        handle.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-        handle.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      } else if (!isLocal) {
+        const netPos = state.getState("pos");
+        const netRot = state.getState("rot");
+        const now = performance.now();
+        if (netPos) {
+          const target = remoteTarget.current;
+          // Treat a changed network sample as a new snapshot.
+          if (
+            !target ||
+            target.pos.x !== netPos.x ||
+            target.pos.y !== netPos.y ||
+            target.pos.z !== netPos.z
+          ) {
+            remotePrev.current = target
+              ? { pos: target.pos, rot: target.rot, t: target.t }
+              : { pos: netPos, rot: netRot, t: now };
+            remoteTarget.current = { pos: netPos, rot: netRot, t: now };
+          }
+          const prev = remotePrev.current;
+          const cur = remoteTarget.current;
+          const span = cur.t - prev.t;
+          const alpha = span > 0 ? Math.min(1, (now - prev.t) / span) : 1;
+          const px = prev.pos.x + (cur.pos.x - prev.pos.x) * alpha;
+          const py = prev.pos.y + (cur.pos.y - prev.pos.y) * alpha;
+          const pz = prev.pos.z + (cur.pos.z - prev.pos.z) * alpha;
+          handle.body.setNextKinematicTranslation({ x: px, y: py, z: pz });
+          if (prev.rot && cur.rot) {
+            _qPrev.set(prev.rot.x, prev.rot.y, prev.rot.z, prev.rot.w);
+            _qTarget.set(cur.rot.x, cur.rot.y, cur.rot.z, cur.rot.w);
+            _qPrev.slerp(_qTarget, alpha);
+            handle.body.setNextKinematicRotation({ x: _qPrev.x, y: _qPrev.y, z: _qPrev.z, w: _qPrev.w });
+          }
+        }
       }
-    }
 
     if (controls.isPressed("Respawn")) respawn();
   });
@@ -652,6 +685,7 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
           droneConfig={droneConfig}
         enableCustomGravity
         enable={isLocal}
+        type={isLocal ? undefined : "kinematicPosition"}
       >
         {isDrone ? <DroneControllerBody drone={tuning.drone} paused={!isLocal || !isSpawned || menuOpen} boostMultiplier={boostMultiplier} /> : <CarControllerBody car={tuning.board} paused={!isLocal || !isSpawned || menuOpen} />}
         <PlayerNameTag

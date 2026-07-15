@@ -138,8 +138,7 @@ export function PauseMenu({ open, onResume, onQuit, vehicleModel }) {
       <div className={`controls-font relative z-10 ${view === "controls" ? "w-[min(96vw,1120px)]" : "w-[min(92vw,560px)]"} pointer-events-auto rounded-[2rem] border border-white/10 bg-slate-950/92 p-7 text-white shadow-[0_30px_100px_rgba(0,0,0,0.6)] backdrop-blur-xl`}>
         {view === "main" && (
           <>
-            <div className="text-[16px] font-bold uppercase tracking-[0.28em] text-cyan-300/90">Game Paused</div>
-            <h1 className="mt-1 text-[clamp(3rem,7vw,4.5rem)] font-black tracking-[-0.05em] leading-none">Paused</h1>
+            <h1 className="text-[clamp(3rem,7vw,4.5rem)] font-black tracking-[-0.05em] leading-none">Paused</h1>
             <div className="mt-2 text-[18px] text-white/60">Pick an option to continue.</div>
             <div className="mt-7 flex flex-col gap-3">
               {MENU_ITEMS.map((item, index) => (

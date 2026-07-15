@@ -1,6 +1,6 @@
 import PartySocket from "partysocket";
 import { useEffect, useSyncExternalStore } from "react";
-import { getLunarSpawnPoint } from "../utils/lunarHeightfield";
+import { getLunarSpawnPoint, setLunarSeed } from "../utils/lunarHeightfield";
 
 const DEFAULT_ROOM_STATE = { gameState: "title" };
 const JOIN_HANDLERS = new Set();
@@ -47,9 +47,24 @@ function snapshot() {
   return version;
 }
 
+let sendQueue = [];
+
 function send(event) {
   if (socket?.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify(event));
+  } else {
+    // Buffer until the socket is open so messages sent during connect/reconnect
+    // (e.g. the "lobby" gameState) are not dropped.
+    sendQueue.push(event);
+  }
+}
+
+function flushQueue() {
+  if (!sendQueue.length) return;
+  const queued = sendQueue;
+  sendQueue = [];
+  for (const event of queued) {
+    if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(event));
   }
 }
 
@@ -119,6 +134,7 @@ function handleMessage(event) {
   const message = JSON.parse(event.data);
 
   if (message.type === "snapshot") {
+    if (typeof message.seed === "number") setLunarSeed(message.seed, { persist: false });
     roomState = { ...DEFAULT_ROOM_STATE, ...message.roomState };
     hostId = message.hostId;
     players = new Map();
@@ -129,6 +145,7 @@ function handleMessage(event) {
   }
 
   if (message.type === "playerJoined") {
+    if (typeof message.seed === "number") setLunarSeed(message.seed, { persist: false });
     hostId = message.hostId;
     upsertPlayer(message.player, true);
     return;
@@ -153,8 +170,33 @@ function handleMessage(event) {
 
   if (message.type === "roomState") {
     roomState[message.key] = message.value;
+    if (message.key === "lunarSeed" && typeof message.value === "number") {
+      setLunarSeed(message.value, { persist: false });
+    }
     emit();
   }
+}
+
+function connect() {
+  socket = new PartySocket({
+    host: getHost(),
+    room: getOrCreateRoomId(),
+    id: localPlayer.id,
+  });
+
+  socket.addEventListener("message", handleMessage);
+  // Send join on every (re)connect so auto-reconnects re-establish the session.
+  socket.addEventListener("open", () => {
+    send({
+      type: "join",
+      id: localPlayer.id,
+      name: localPlayer.state.name || localPlayer.state.profile?.name,
+      vehicle: localPlayer.state.vehicle,
+      pos: localPlayer.state.pos,
+      rot: localPlayer.state.rot,
+    });
+    flushQueue();
+  });
 }
 
 export async function insertCoin({ offline = false } = {}) {
@@ -177,21 +219,43 @@ export async function insertCoin({ offline = false } = {}) {
   hostId = id;
 
   if (!offline) {
-    socket = new PartySocket({
-      host: getHost(),
-      room: getOrCreateRoomId(),
-      id,
-    });
-
-    socket.addEventListener("message", handleMessage);
-    socket.addEventListener(
-      "open",
-      () => {
-        send({ type: "join", id, name: fallbackName, vehicle, pos: spawnPoint, rot: { x: 0, y: 0, z: 0, w: 1 } });
-      },
-      { once: true }
-    );
+    connect();
   }
+  emit();
+}
+
+// Leave the current room locally: close the socket and reset local view state
+// WITHOUT broadcasting. The room keeps running for everyone else.
+export function leaveRoom() {
+  if (socket) {
+    try {
+      socket.close();
+    } catch {
+      // Ignore close errors.
+    }
+    socket = null;
+  }
+  players = new Map();
+  roomState = { ...DEFAULT_ROOM_STATE };
+  hostId = null;
+  emit();
+}
+
+// Reconnect to the room we left (keeps the same local player identity).
+export function rejoin() {
+  if (!localPlayer) return;
+  // Skip if we already have a live (or in-flight) socket.
+  if (socket && socket.readyState !== WebSocket.CLOSING && socket.readyState !== WebSocket.CLOSED) {
+    return;
+  }
+  connect();
+  emit();
+}
+
+// Set the local game view without telling the server (used when entering the
+// lobby after a local quit, so we don't yank the whole room).
+export function setLocalGameState(value) {
+  roomState.gameState = value;
   emit();
 }
 

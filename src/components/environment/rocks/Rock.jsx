@@ -1,8 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useEffect, useRef } from "react";
 import { Clone, useGLTF } from "@react-three/drei";
 import { RigidBody } from "@react-three/rapier";
-import { Vector3 } from "three";
 
 // One optimized, draco-compressed .glb per rock (generated from
 // _assets-to-import/moon_rock_0N_1k.gltf via gltf-transform --compress draco).
@@ -16,16 +14,9 @@ const ROCK_PATHS = {
   7: "/models/rocks/moon_rock_07-transformed.glb",
 };
 
-// Colliders only mount when the rock is within this radius of the camera, so
-// thousands of scattered rocks stay free until you're actually near them
-// (mirrors the LunarTerrain PHYSICS_RADIUS gating).
-const PHYSICS_RADIUS = 40;
-
 // The rock GLBs are modelled at a tiny native scale (~1/76 of a "dog" unit), so
 // this multiplier makes `scale={1}` ≈ dog-sized and `scale={1..2}` ≈ 1–2× dog.
 export const ROCK_BASE_SCALE = 76;
-
-const _tmp = new Vector3();
 
 /**
  * A single lunar rock. Position / rotation / scale are passed straight through
@@ -56,9 +47,7 @@ export function Rock({
   const path =
     typeof model === "number" ? ROCK_PATHS[model] : `/models/rocks/${model}-transformed.glb`;
   const { scene } = useGLTF(path, "/draco/");
-  const camera = useThree((s) => s.camera);
   const groupRef = useRef();
-  const [near, setNear] = useState(false);
 
   useEffect(() => {
     scene.traverse((c) => {
@@ -71,7 +60,7 @@ export function Rock({
   // The parent LunarRocks already culls rocks that are outside the PHYSICS_RADIUS.
   // If we receive the colliders prop, we are guaranteed to be "near" the player.
   const body = colliders ? (
-    <RigidBody type="fixed" colliders="cuboid" includeInvisible={false}>
+    <RigidBody type="fixed" colliders="hull" includeInvisible={false}>
       <Clone object={scene} castShadow receiveShadow />
     </RigidBody>
   ) : (

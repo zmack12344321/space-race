@@ -1,7 +1,10 @@
 import { atom, useAtom } from "jotai";
 import {
   isHost,
+  leaveRoom,
   myPlayer,
+  rejoin,
+  setLocalGameState,
   startMatchmaking,
   useMultiplayerState,
   usePlayerState,
@@ -345,6 +348,26 @@ export const UI = () => {
     me?.setState("_respawnAt", Date.now());
   };
 
+  const enterLobby = () => {
+    rejoin();
+    setGameState("lobby");
+  };
+
+  // Request mouse capture during a user gesture (starting/resuming). Pointer
+  // lock can only be acquired from within a gesture, so we trigger it from the
+  // buttons rather than waiting for a separate canvas click.
+  const requestGamePointerLock = () => {
+    if (gamepadRef.current.connected) return;
+    const canvas = document.querySelector("canvas");
+    if (canvas && document.pointerLockElement !== canvas) {
+      try {
+        canvas.requestPointerLock();
+      } catch {
+        // Pointer lock can be rejected (e.g. right after Esc); ignored.
+      }
+    }
+  };
+
   const randomizeSeed = () => {
     const nextSeed = globalThis.crypto?.getRandomValues
       ? globalThis.crypto.getRandomValues(new Uint32Array(1))[0]
@@ -415,7 +438,7 @@ export const UI = () => {
     const tick = () => {
       const pad = gamepadRef.current;
       if (pad.justPressed.a || pad.justPressed.start) {
-        setGameState("lobby");
+        enterLobby();
       }
       raf = requestAnimationFrame(tick);
     };
@@ -471,7 +494,7 @@ export const UI = () => {
       }
 
       if (pad.justPressed.start) triggerLobbyAction(1);
-      if (pad.justPressed.b) setGameState("title");
+      if (pad.justPressed.b) setLocalGameState("title");
       raf = requestAnimationFrame(tick);
     };
 
@@ -495,7 +518,7 @@ export const UI = () => {
 
   return (
     <>
-      {gameState === "title" && <TitleScreen onEnterLobby={() => setGameState("lobby")} />}
+       {gameState === "title" && <TitleScreen onEnterLobby={enterLobby} />}
       {gameState === "loading" && loadingSlide && (
       <div
         className={`fixed z-30 inset-0 bg-black text-white flex flex-col items-center justify-center gap-6 pointer-events-none transition-transform duration-500 isolate
@@ -531,8 +554,11 @@ export const UI = () => {
       {gameState === "game" && (
         <PauseMenu
           open={menuOpen}
-          onResume={() => setMenuOpen(false)}
-          onQuit={() => setGameState("title")}
+          onResume={() => {
+            setMenuOpen(false);
+            requestGamePointerLock();
+          }}
+          onQuit={() => leaveRoom()}
           vehicleModel={me?.getState("vehicle") || "longboard"}
         />
       )}
@@ -544,6 +570,7 @@ export const UI = () => {
             ref={(el) => { lobbyActionRefs.current[0] = el; }}
             className="ui-button min-h-14 w-full sm:w-auto px-5 py-4 bg-gray-100 text-black text-2xl sm:text-3xl rounded-md touch-manipulation"
             onClick={() => {
+              requestGamePointerLock();
               setGameState("loading");
               setTimeout(() => {
                 setGameState("game");
@@ -556,6 +583,7 @@ export const UI = () => {
             ref={(el) => { lobbyActionRefs.current[1] = el; }}
             className="ui-button min-h-14 w-full sm:w-auto px-6 py-4 bg-gray-100 text-black text-2xl rounded-md touch-manipulation"
             onClick={async () => {
+              requestGamePointerLock();
               setGameState("loading");
               await startMatchmaking();
               setGameState("game");

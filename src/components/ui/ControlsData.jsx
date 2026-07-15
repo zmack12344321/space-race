@@ -225,8 +225,7 @@ export function ControlsScreen({ onBack }) {
     <div ref={panelRef} className="controls-font flex max-h-[min(86vh,52rem)] flex-col">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="text-[16px] font-bold uppercase tracking-[0.28em] text-cyan-300/90">Controls</div>
-          <h2 className="mt-1 text-[clamp(2.4rem,6vw,4rem)] font-black tracking-[-0.05em] leading-none">How to Play</h2>
+          <h2 className="text-[clamp(2.4rem,6vw,4rem)] font-black tracking-[-0.05em] leading-none">How to Play</h2>
         </div>
         <button
           type="button"
