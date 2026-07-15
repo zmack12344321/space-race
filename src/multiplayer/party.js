@@ -1,6 +1,9 @@
 import PartySocket from "partysocket";
 import { useEffect, useSyncExternalStore } from "react";
+import { Vector3 } from "three";
 import { getLunarSpawnPoint, setLunarSeed } from "../utils/lunarHeightfield";
+import { spawnRemoteLaser, STUN_TIME } from "../components/vehicles/laserStore";
+import { useHealthStore } from "../components/vehicles/healthStore";
 
 const DEFAULT_ROOM_STATE = { gameState: "title" };
 const JOIN_HANDLERS = new Set();
@@ -53,7 +56,7 @@ function snapshot() {
 
 let sendQueue = [];
 
-function send(event) {
+export function send(event) {
   if (socket?.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify(event));
   } else {
@@ -179,6 +182,44 @@ function handleMessage(event) {
     }
     emit();
   }
+
+  if (message.type === "laser") {
+    // Ignore our own echo — we already spawned it locally on fire.
+    if (message.ownerId === localPlayer?.id) return;
+    spawnRemoteLaser({
+      ownerId: message.ownerId,
+      pos: new Vector3(message.pos.x, message.pos.y, message.pos.z),
+      dir: new Vector3(message.dir.x, message.dir.y, message.dir.z),
+      ttl: message.ttl,
+      speed: message.speed,
+    });
+    return;
+  }
+
+  if (message.type === "damage") {
+    const me = localPlayer;
+    if (me && message.targetId === me.id) {
+      const store = useHealthStore.getState();
+      const next = store.applyDamage(message.amount);
+      send({ type: "playerState", id: me.id, key: "health", value: next });
+      if (next <= 0) {
+        store.reset();
+        send({ type: "playerState", id: me.id, key: "health", value: 100 });
+        damageHandler?.("respawn");
+      } else {
+        store.setStunUntil(performance.now() / 1000 + STUN_TIME);
+        damageHandler?.("knockback", message.knockDir);
+      }
+    }
+    return;
+  }
+}
+
+// RiderController registers this so incoming damage can apply knockback /
+// respawn against the actual physics body.
+let damageHandler = null;
+export function setDamageHandler(fn) {
+  damageHandler = fn;
 }
 
 function connect() {

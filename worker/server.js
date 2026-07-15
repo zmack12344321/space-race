@@ -129,7 +129,32 @@ export class SpaceRaceServer extends Server {
           key: event.key,
           value: event.value,
         });
-        await this._persist();
+        return;
+      }
+
+      if (event.type === "laser") {
+        // Fire-and-forget visual: relay to everyone (owner already has it).
+        this.broadcastJson({
+          type: "laser",
+          ownerId: event.ownerId,
+          pos: event.pos,
+          dir: event.dir,
+          ttl: event.ttl,
+          speed: event.speed,
+        });
+        return;
+      }
+
+      if (event.type === "damage") {
+        // Relay hit so the target client applies knockback/stun/respawn.
+        this.broadcastJson({
+          type: "damage",
+          targetId: event.targetId,
+          amount: event.amount,
+          sourceId: event.sourceId,
+          knockDir: event.knockDir,
+        });
+        return;
       }
     } catch {
       // Ignore invalid JSON messages

@@ -6,6 +6,7 @@ import { Joystick, onPlayerJoin } from "../../multiplayer/party";
 import { useEffect, useRef, useState } from "react";
 import { Vector3 } from "three";
 import { RiderController } from "../vehicles/RiderController";
+import { LaserSystem } from "../vehicles/LaserSystem";
 import { GameArea } from "../environment/GameArea";
 import { Skatepark } from "../environment/Skatepark";
 import { LunarSky, LunarTerrain } from "../environment/LunarTerrain";
@@ -133,6 +134,9 @@ export const Game = ({ level = "lunar", physicsDebug = false, debugMode = false 
             <CuboidCollider args={[20, 3, 20]} />
           </RigidBody>
         )}
+        <LaserSystem
+          getGroundHeight={level === "lunar" ? getLunarHeight : level === "skatepark" ? () => 0 : undefined}
+        />
       </Physics>
     </group>
   );

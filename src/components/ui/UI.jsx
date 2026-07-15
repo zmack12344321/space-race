@@ -18,6 +18,7 @@ import { PhysicsDebugAtom, GameReadyAtom } from "./debugState";
 import { useIsTouchDevice } from "./useIsTouchDevice";
 import { getLunarSeed, setLunarSeed } from "../../utils/lunarHeightfield";
 import { useGamepadRef } from "./gamepadStore";
+import { BoostMeter } from "./BoostMeter";
 
 export const NameEditingAtom = atom(false);
 export const GameMenuOpenAtom = atom(false);
@@ -563,6 +564,7 @@ export const UI = () => {
         />
       )}
       {me && <BoardSelector me={me} menuOpen={menuOpen} />}
+      {gameState === "game" && !menuOpen && <BoostMeter />}
       {gameState === "game" && isTouchDevice && <EcctrlTouchControls />}
       {gameState === "lobby" && isHost() && (
         <div className="fixed bottom-4 right-4 z-10 w-[min(92vw,24rem)] flex flex-col gap-3 items-stretch sm:items-end">

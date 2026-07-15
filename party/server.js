@@ -123,6 +123,31 @@ export default class Server {
       this.broadcast({ type: "roomState", key: event.key, value: event.value });
       this._persist();
     }
+
+    if (event.type === "laser") {
+      // Fire-and-forget visual: relay to everyone (owner already has it).
+      this.broadcast({
+        type: "laser",
+        ownerId: event.ownerId,
+        pos: event.pos,
+        dir: event.dir,
+        ttl: event.ttl,
+        speed: event.speed,
+      });
+      return;
+    }
+
+    if (event.type === "damage") {
+      // Relay hit so the target client applies knockback/stun/respawn.
+      this.broadcast({
+        type: "damage",
+        targetId: event.targetId,
+        amount: event.amount,
+        sourceId: event.sourceId,
+        knockDir: event.knockDir,
+      });
+      return;
+    }
   }
 
   onClose(connection) {

@@ -3,7 +3,15 @@ import { CuboidCollider, CylinderCollider, useBeforePhysicsStep, useRapier } fro
 import { EcctrlCameraControls } from "ecctrl/camera";
 import { useButtonStore, useJoystickStore } from "ecctrl/input";
 import { EcctrlVehicle, ShapeCastWheel, ThrustPropeller } from "ecctrl/vehicle";
-import { myPlayer, usePlayerState } from "../../multiplayer/party";
+import { myPlayer, usePlayerState, send, setDamageHandler } from "../../multiplayer/party";
+import {
+  fireLaser,
+  FIRE_COOLDOWN,
+  LASER_TTL,
+  LASER_SPEED,
+  KNOCKBACK,
+} from "./laserStore";
+import { useHealthStore } from "./healthStore";
 import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Quaternion, Vector3 } from "three";
@@ -22,10 +30,14 @@ import { GameReadyAtom } from "../ui/debugState";
 import { useSetAtom } from "jotai";
 import { PlayerNameTag } from "../environment/PlayerNameTag";
 import { useGamepadRef } from "../ui/gamepadStore";
+import { setBoost } from "../ui/boostStore";
 import { usePlayerSettings } from "../ui/playerSettingsStore";
 
 const ARCADE_JUMP_IMPULSE = 360;
 const WORLD_UP = new Vector3(0, 1, 0);
+const BOOST_DRAIN = 0.4;
+const BOOST_RECHARGE = 0.28;
+const BOOST_LOCK_THRESHOLD = 0.25;
 
 // Reused temps to avoid per-frame allocations (GC stutter).
 const _qPrev = new Quaternion();
@@ -171,6 +183,8 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
   const setTuning = useEcctrlTuningStore((s) => s.setTuning);
   const rideTuning = isDrone ? tuning.drone : tuning.board;
   const [boostActive, setBoostActive] = useState(false);
+  const boostEnergy = useRef(1);
+  const boostLocked = useRef(false);
   const boostMultiplier = boostActive ? tuning.common.boostMultiplier ?? 1 : 1;
   const menuOpen = useAtomValue(GameMenuOpenAtom);
   const gamepadRef = useGamepadRef();
@@ -196,6 +210,9 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
   const jumpRequested = useRef(false);
   const ecctrlJoystick = useRef({ active: false, x: 0, y: 0 });
   const ecctrlButtons = useRef({ b1: false, b2: false, b3: false, b4: false });
+  const firing = useRef(false);
+  const lastFireAt = useRef(0);
+  const fireRef = useRef(() => {});
   const cachedBodyState = useRef({
     pos: { x: 0, y: 0, z: 0 },
     rot: { x: 0, y: 0, z: 0, w: 1 },
@@ -344,7 +361,7 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
       if (e.button !== 0) return;
       if (document.pointerLockElement !== canvas) return;
       fireHeld.current = true;
-      onFireRef.current?.();
+      fireRef.current?.();
     };
     const onMouseUp = (e) => {
       if (e.button === 0) fireHeld.current = false;
@@ -381,6 +398,57 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
   useEffect(() => {
     if (menuOpen && document.pointerLockElement) document.exitPointerLock();
   }, [menuOpen]);
+
+  // Spawn a laser from the UFO muzzle, travelling along the dog's forward
+  // (+ body) axis. Local-only: the network echo is handled by the server relay.
+  const tryFire = () => {
+    const handle = vehicle.current;
+    const body = handle?.body;
+    if (!body || menuOpen) return;
+    const now = performance.now();
+    if (now - lastFireAt.current < FIRE_COOLDOWN * 1000) return;
+    lastFireAt.current = now;
+
+    const t = body.translation();
+    const fwd = handle.bodyZAxis;
+    const muzzle = new Vector3(t.x, t.y, t.z).addScaledVector(fwd, 1.2);
+    muzzle.y += 0.3;
+    const dir = new Vector3(fwd.x, fwd.y, fwd.z).normalize();
+
+    fireLaser({ pos: muzzle, dir, ownerId: me.id });
+    send({
+      type: "laser",
+      ownerId: me.id,
+      pos: { x: muzzle.x, y: muzzle.y, z: muzzle.z },
+      dir: { x: dir.x, y: dir.y, z: dir.z },
+      ttl: LASER_TTL,
+      speed: LASER_SPEED,
+    });
+    onFireRef.current?.(muzzle, dir);
+  };
+  fireRef.current = tryFire;
+
+  useEffect(() => {
+    if (!isLocal) return;
+    setDamageHandler((kind, data) => {
+      const body = vehicle.current?.body;
+      if (!body) return;
+      if (kind === "respawn") {
+        respawn();
+        return;
+      }
+      if (kind === "knockback" && data) {
+        const lv = body.linvel();
+        const k = new Vector3(data.x, data.y, data.z).normalize().multiplyScalar(KNOCKBACK);
+        body.setLinvel(
+          { x: lv.x + k.x, y: lv.y + KNOCKBACK * 0.4 + k.y, z: lv.z + k.z },
+          true
+        );
+        body.setAngvel({ x: (Math.random() - 0.5) * 6, y: 0, z: (Math.random() - 0.5) * 6 }, true);
+      }
+    });
+    return () => setDamageHandler(null);
+  }, [isLocal]);
 
   useEffect(() => {
     if (!isLocal) return;
@@ -455,7 +523,8 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
     const handle = vehicle.current;
     if (!handle?.body) return;
 
-    if (menuOpen) {
+    const stunned = isLocal && useHealthStore.getState().isStunned(performance.now() / 1000);
+    if (menuOpen || stunned) {
       handle.setMovement({
         forward: false,
         backward: false,
@@ -470,19 +539,30 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
     }
 
     const pad = gamepadRef.current;
+    if (isLocal && (fireHeld.current || pad.axes.rt > 0.12 || pad.buttons.rt)) fireRef.current?.();
     const joystickL = mergedJoystickInput(controls, ecctrlJoystick.current);
     const gamepadForward = pad.axes.rt > 0.12;
     const gamepadBack = pad.axes.lt > 0.12;
     const settings = usePlayerSettings.getState();
     const gamepadSteer = settings.invertSteering ? -pad.axes.lx : pad.axes.lx;
-    const boostHeld = keys.current.boost || ecctrlButtons.current.b4 || pad.buttons.y;
-    if (boostHeld !== boostActive) setBoostActive(boostHeld);
+    const boostHeld = keys.current.boost || ecctrlButtons.current.b4 || pad.axes.lt > 0.12;
     const linvel = cachedBodyState.current.linvel;
     const bodyForwardSpeed = linvel.x * handle.bodyZAxis.x + linvel.y * handle.bodyZAxis.y + linvel.z * handle.bodyZAxis.z;
     const backPressed = keys.current.back || ecctrlButtons.current.b1 || gamepadBack || joystickL.y < -0.2;
     const backIsBrake = backPressed && bodyForwardSpeed > 1.2;
 
       if (isLocal && isSpawned) {
+        if (boostLocked.current && boostEnergy.current > BOOST_LOCK_THRESHOLD) boostLocked.current = false;
+        const canBoost = boostHeld && !boostLocked.current && boostEnergy.current > 0.001;
+        if (canBoost) {
+          boostEnergy.current = Math.max(0, boostEnergy.current - BOOST_DRAIN * delta);
+          if (boostEnergy.current <= 0.001) boostLocked.current = true;
+        } else {
+          boostEnergy.current = Math.min(1, boostEnergy.current + BOOST_RECHARGE * delta);
+        }
+        if (canBoost !== boostActive) setBoostActive(canBoost);
+        setBoost(boostEnergy.current, canBoost, boostLocked.current);
+
         if (cameraControls.current) {
           cameraControls.current.moveTo(handle.currPos.x, handle.currPos.y + tuning.common.cameraHeight, handle.currPos.z, true);
           cameraUp.current.copy(isDrone ? WORLD_UP : handle.upAxis);
@@ -531,8 +611,8 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
         const stickStrafe = settings.invertSteering ? -pad.axes.lx : pad.axes.lx;
         const mobile = ecctrlJoystick.current.active ? joystickL : { x: 0, y: 0 };
 
-        const pitchForward = keys.current.forward || stickFwd > 0.2 || mobile.y > 0.2;
-        const pitchBackward = keys.current.back || stickFwd < -0.2 || mobile.y < -0.2;
+        const pitchForward = keys.current.forward || stickFwd > 0.2 || mobile.y > 0.2 || canBoost;
+        const pitchBackward = (keys.current.back || stickFwd < -0.2 || mobile.y < -0.2) && !canBoost;
         const rollLeft = keys.current.left || stickStrafe < -0.2 || mobile.x < -0.2;
         const rollRight = keys.current.right || stickStrafe > 0.2 || mobile.x > 0.2;
         const throttleUp = keys.current.up || pad.buttons.a;
@@ -623,7 +703,7 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
             presetName: preset.type,
             speed: Math.hypot(lv.x, lv.z),
             verticalSpeed: lv.y,
-            boosting: boostHeld,
+            boosting: canBoost,
             engineRPM: handle.engineRPM,
             gearIndex: handle.gearIndex,
             driveRatio: handle.driveRatio,
