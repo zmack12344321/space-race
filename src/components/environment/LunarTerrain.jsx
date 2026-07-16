@@ -4,7 +4,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState, startTransition } from "react";
 import * as THREE from "three";
 import { getLunarHeight, getLunarSeed } from "../../utils/lunarHeightfield";
-import { SpaceBackdrop } from "./SpaceBackdrop";
+import { NewMoonSky } from "./NewMoonSky";
 import { useLunarMaterial } from "./useLunarMaterial";
 
 import TerrainWorker from "../../workers/terrain.worker.js?worker";
@@ -152,7 +152,7 @@ function LunarTerrainChunk({ chunkX, chunkZ, centerX, centerZ, material, quality
   return visualTerrain ? <primitive object={visualTerrain} /> : null;
 }
 
-export function LunarSky() {
+export function LunarSky({ skyMode = "blue" } = {}) {
   const scene = useThree((state) => state.scene);
 
   useEffect(() => {
@@ -165,7 +165,8 @@ export function LunarSky() {
 
   return (
     <>
-      <SpaceBackdrop />
+      {/* <SpaceBackdrop /> */}
+      <NewMoonSky skyMode={skyMode} />
       <AdaptiveDpr pixelated />
     </>
   );

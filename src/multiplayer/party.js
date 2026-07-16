@@ -2,18 +2,110 @@ import PartySocket from "partysocket";
 import { useEffect, useSyncExternalStore } from "react";
 import { Vector3 } from "three";
 import { getLunarSpawnPoint, setLunarSeed } from "../utils/lunarHeightfield";
-import { spawnRemoteLaser, STUN_TIME } from "../components/vehicles/laserStore";
+import { spawnRemoteLaser, upsertRemoteBeam, STUN_TIME, BEAM_LENGTH } from "../components/vehicles/laserStore";
 import { useHealthStore } from "../components/vehicles/healthStore";
 
 const DEFAULT_ROOM_STATE = { gameState: "title" };
 const JOIN_HANDLERS = new Set();
 const LISTENERS = new Set();
-const TRANSIENT_KEYS = new Set(["pos", "rot", "_controls"]);
+const TRANSIENT_KEYS = new Set(["pos", "rot", "vel", "_controls"]);
 // Outbound position/rotation rate. Higher = smoother remote view (more
 // bandwidth). 20ms ≈ 50Hz, which makes remote avatars track closely to the
 // local 60fps view once interpolated.
 const POSITION_UPDATE_MS = 20;
 const DEFAULT_VEHICLE = "longboard";
+
+// Snapshot interpolation: remote avatars are rendered at a fixed delay behind
+// real time and lerped between the two network snapshots that bracket that
+// render time. This is the canonical approach (Gambetta) for smooth remote
+// motion — we never extrapolate *past* known data, so there is no overshoot or
+// snap-back when the next packet arrives. The delay trades a little latency for
+// zero jitter; 100ms covers ~5 snapshots at 50Hz so we always have a bracket.
+const INTERP_DELAY_MS = 100;
+const SNAPSHOT_BUFFER_MS = 2000;
+const _snapshots = new Map(); // playerId -> array of { t, pos, rot, vel }
+
+function pushSnapshot(id, key, value) {
+  // Only pos/rot/vel form the interpolated transform.
+  let buf = _snapshots.get(id);
+  if (!buf) {
+    buf = [];
+    _snapshots.set(id, buf);
+  }
+  const t = performance.now() / 1000;
+  // Snapshots are stored per-field but we need them time-aligned. Keep a single
+  // buffer keyed by arrival time; the latest value of each field wins within a
+  // tick. To keep brackets correct we coalesce rapid updates into one entry.
+  const last = buf[buf.length - 1];
+  if (last && t - last.t < 0.001) {
+    if (key === "pos") last.pos = value;
+    else if (key === "rot") last.rot = value;
+    else if (key === "vel") last.vel = value;
+  } else {
+    buf.push({
+      t,
+      pos: key === "pos" ? value : last?.pos,
+      rot: key === "rot" ? value : last?.rot,
+      vel: key === "vel" ? value : last?.vel,
+    });
+  }
+  const cutoff = t - SNAPSHOT_BUFFER_MS / 1000;
+  while (buf.length > 2 && buf[1].t < cutoff) buf.shift();
+}
+
+function lerp(a, b, f) {
+  return a + (b - a) * f;
+}
+
+// Returns the interpolated { pos, rot, vel } for a remote player at the render
+// time (now - INTERP_DELAY_MS). Returns null if no snapshots yet. Falls back to
+// the raw latest state if the buffer is too short so avatars still appear.
+export function getInterpolatedTransform(id) {
+  const buf = _snapshots.get(id);
+  const player = players.get(id);
+  if (!buf || buf.length === 0) {
+    if (!player) return null;
+    return {
+      pos: player.state.pos,
+      rot: player.state.rot,
+      vel: player.state.vel,
+    };
+  }
+  const renderTime = performance.now() / 1000 - INTERP_DELAY_MS / 1000;
+  if (buf.length === 1 || renderTime <= buf[0].t) {
+    const s = buf[0];
+    return { pos: s.pos, rot: s.rot, vel: s.vel };
+  }
+  if (renderTime >= buf[buf.length - 1].t) {
+    const s = buf[buf.length - 1];
+    return { pos: s.pos, rot: s.rot, vel: s.vel };
+  }
+  let a = buf[0];
+  let b = buf[buf.length - 1];
+  for (let i = 0; i < buf.length - 1; i++) {
+    if (buf[i].t <= renderTime && buf[i + 1].t >= renderTime) {
+      a = buf[i];
+      b = buf[i + 1];
+      break;
+    }
+  }
+  const span = b.t - a.t;
+  const f = span > 0 ? (renderTime - a.t) / span : 0;
+  const pa = a.pos || player?.state.pos;
+  const pb = b.pos || player?.state.pos;
+  const ra = a.rot || player?.state.rot;
+  const rb = b.rot || player?.state.rot;
+  const va = a.vel || player?.state.vel;
+  const vb = b.vel || player?.state.vel;
+  return {
+    pos: pa && pb ? { x: lerp(pa.x, pb.x, f), y: lerp(pa.y, pb.y, f), z: lerp(pa.z, pb.z, f) } : pa,
+    rot:
+      ra && rb
+        ? { x: lerp(ra.x, rb.x, f), y: lerp(ra.y, rb.y, f), z: lerp(ra.z, rb.z, f), w: lerp(ra.w, rb.w, f) }
+        : ra,
+    vel: va && vb ? { x: lerp(va.x, vb.x, f), y: lerp(va.y, vb.y, f), z: lerp(va.z, vb.z, f) } : va,
+  };
+}
 
 let socket = null;
 let localPlayer = null;
@@ -105,7 +197,7 @@ function makePlayer(raw) {
       if (key === "vehicle" && typeof value === "string") setPreferredVehicle(value);
       if (!TRANSIENT_KEYS.has(key)) emit();
 
-      if (key === "pos" || key === "rot") {
+      if (key === "pos" || key === "rot" || key === "vel") {
         const throttleKey = `${player.id}:${key}`;
         const now = performance.now();
         if (now - (lastSentAt.get(throttleKey) || 0) < POSITION_UPDATE_MS) return;
@@ -162,6 +254,7 @@ function handleMessage(event) {
     const player = players.get(message.id);
     hostId = message.hostId;
     players.delete(message.id);
+    _snapshots.delete(message.id);
     player?.onQuitCallback?.();
     emit();
     return;
@@ -171,6 +264,7 @@ function handleMessage(event) {
     const player = players.get(message.id);
     if (!player) return;
     player.state[message.key] = message.value;
+    if (TRANSIENT_KEYS.has(message.key)) pushSnapshot(message.id, message.key, message.value);
     if (!TRANSIENT_KEYS.has(message.key)) emit();
     return;
   }
@@ -192,6 +286,19 @@ function handleMessage(event) {
       dir: new Vector3(message.dir.x, message.dir.y, message.dir.z),
       ttl: message.ttl,
       speed: message.speed,
+    });
+    return;
+  }
+
+  if (message.type === "beam") {
+    // Remote sustained beam: ignore our own; refresh the shared slot.
+    if (message.ownerId === localPlayer?.id) return;
+    upsertRemoteBeam({
+      ownerId: message.ownerId,
+      pos: new Vector3(message.pos.x, message.pos.y, message.pos.z),
+      dir: new Vector3(message.dir.x, message.dir.y, message.dir.z),
+      beamLength: message.beamLength ?? BEAM_LENGTH,
+      active: message.active,
     });
     return;
   }

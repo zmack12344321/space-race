@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useGamepadRef } from "./gamepadStore";
 import { EcctrlTuningPanel } from "./EcctrlControlPanel";
 import { ControlsScreen } from "./ControlsData";
+import { PAUSE_QUIPS, makeQuipPicker } from "../../utils/quips";
 
 const STICK_NAV = 0.55;
 const NAV_REPEAT = 220;
@@ -19,6 +20,8 @@ export function PauseMenu({ open, onResume, onQuit, vehicleModel }) {
   const buttonRefs = useRef([]);
   const [focused, setFocused] = useState(0);
   const focusIndex = useRef(0);
+  const pickQuip = useRef(makeQuipPicker(PAUSE_QUIPS));
+  const [quip] = useState(() => pickQuip.current());
 
   useEffect(() => {
     if (open) {
@@ -139,7 +142,7 @@ export function PauseMenu({ open, onResume, onQuit, vehicleModel }) {
         {view === "main" && (
           <>
             <h1 className="text-[clamp(3rem,7vw,4.5rem)] font-black tracking-[-0.05em] leading-none">Paused</h1>
-            <div className="mt-2 text-[18px] text-white/60">Pick an option to continue.</div>
+            <div className="mt-2 text-[18px] text-white/60">{quip}</div>
             <div className="mt-7 flex flex-col gap-3">
               {MENU_ITEMS.map((item, index) => (
                 <button

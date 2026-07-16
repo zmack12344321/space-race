@@ -17,11 +17,80 @@ import { PauseMenu } from "./PauseMenu";
 import { PhysicsDebugAtom, GameReadyAtom } from "./debugState";
 import { useIsTouchDevice } from "./useIsTouchDevice";
 import { getLunarSeed, setLunarSeed } from "../../utils/lunarHeightfield";
-import { useGamepadRef } from "./gamepadStore";
+import { useGamepadRef, getGamepadState } from "./gamepadStore";
+import { TITLE_QUIPS, LOADING_QUIPS, PLAY_QUIPS, NAME_QUIPS, PRACTICE_QUIPS, RESPAWN_QUIPS, makeQuipPicker } from "../../utils/quips";
 import { BoostMeter } from "./BoostMeter";
+import { HeatMeter } from "./HeatMeter";
 
 export const NameEditingAtom = atom(false);
 export const GameMenuOpenAtom = atom(false);
+
+function GamepadDebug() {
+  const [show, setShow] = useState(false);
+  const [info, setInfo] = useState({ connected: false, pressed: "", axes: "" });
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.code === "Backquote") setShow((s) => !s);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
+    if (!show) return;
+    let raf = 0;
+    let last = 0;
+    const loop = (t) => {
+      if (t - last > 100) {
+        last = t;
+        const pads = typeof navigator !== "undefined" && navigator.getGamepads ? navigator.getGamepads() : [];
+        const pad = pads && [...pads].find((p) => p);
+        const buttons = pad ? pad.buttons.map((b, i) => (b.pressed ? i : null)).filter((v) => v !== null) : [];
+        const axes = pad
+          ? pad.axes
+              .map((v, i) => (Math.abs(v) > 0.05 ? `${i}:${Number(v).toFixed(2)}` : null))
+              .filter(Boolean)
+              .join(" ")
+          : "";
+        const s = getGamepadState();
+        const zd = typeof window !== "undefined" && window.__zoomDebug ? window.__zoomDebug : null;
+        setInfo({
+          connected: Boolean(pad),
+          pressed: buttons.join(", "),
+          axes,
+          dpad: `up:${s.buttons.dpadUp} down:${s.buttons.dpadDown}`,
+          zoom: zd ? `dist:${zd.dist?.toFixed?.(2)} in:${zd.dpadUp} out:${zd.dpadDown} min:${zd.min} max:${zd.max} col:${zd.colliders} cc:${zd.hasCC}` : "n/a",
+        });
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [show]);
+
+  if (!show) return null;
+  return (
+    <div
+      style={{
+        position: "fixed",
+        right: 8,
+        bottom: 8,
+        zIndex: 9999,
+        background: "rgba(0,0,0,0.82)",
+        color: "#5effa0",
+        font: "12px monospace",
+        padding: 10,
+        borderRadius: 8,
+        whiteSpace: "pre-wrap",
+        maxWidth: 360,
+        pointerEvents: "none",
+      }}
+    >
+       {`GAMEPAD DEBUG (press \` to hide)\nconnected: ${info.connected}\npressed: ${info.pressed || "none"}\naxes: ${info.axes || "none"}\ndpad(store): ${info.dpad}\nzoom: ${info.zoom}`}
+    </div>
+  );
+}
 
 const LOADING_STARS = [
   { cx: 6, cy: 14, r: 1.6, delay: "0s" },
@@ -291,7 +360,7 @@ function WarpStarfield() {
   return <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />;
 }
 
-function TitleScreen({ onEnterLobby }) {
+function TitleScreen({ onEnterLobby, quip, playQuip }) {
   return (
     <div className="fixed inset-0 z-40 isolate overflow-hidden bg-black text-white">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(103,232,249,0.16),transparent_28%),radial-gradient(circle_at_78%_18%,rgba(168,85,247,0.16),transparent_26%),linear-gradient(180deg,#02040a_0%,#050816_42%,#010205_100%)]" />
@@ -303,11 +372,11 @@ function TitleScreen({ onEnterLobby }) {
             Space Race
           </div>
           <div className="mx-auto mt-4 max-w-xl text-[clamp(1rem,2.2vw,1.5rem)] text-white/75">
-            Dog-powered moon boards, neon dust, and a lobby full of weird little hovercraft.
+            {quip}
           </div>
           <div className="mt-8 flex justify-center">
             <button className="ui-button px-10 py-4 bg-gray-100 text-black text-2xl sm:text-4xl rounded-full touch-manipulation" onClick={onEnterLobby}>
-              Enter Lobby
+              {playQuip}
             </button>
           </div>
         </div>
@@ -339,6 +408,19 @@ export const UI = () => {
 
   const [invited, setInvited] = useState(false);
 
+  const pickTitleQuip = useState(() => makeQuipPicker(TITLE_QUIPS))[0];
+  const pickLoadingQuip = useState(() => makeQuipPicker(LOADING_QUIPS))[0];
+  const pickPlayQuip = useState(() => makeQuipPicker(PLAY_QUIPS))[0];
+  const pickNameQuip = useState(() => makeQuipPicker(NAME_QUIPS))[0];
+  const pickPracticeQuip = useState(() => makeQuipPicker(PRACTICE_QUIPS))[0];
+  const pickRespawnQuip = useState(() => makeQuipPicker(RESPAWN_QUIPS))[0];
+  const [titleQuip] = useState(() => pickTitleQuip());
+  const [loadingQuip] = useState(() => pickLoadingQuip());
+  const [playQuip, setPlayQuip] = useState(() => pickPlayQuip());
+  const [nameQuip] = useState(() => pickNameQuip());
+  const [practiceQuip] = useState(() => pickPracticeQuip());
+  const [respawnQuip, setRespawnQuip] = useState(() => pickRespawnQuip());
+
   const invite = () => {
     navigator.clipboard.writeText(window.location.href);
     setInvited(true);
@@ -347,10 +429,12 @@ export const UI = () => {
 
   const respawn = () => {
     me?.setState("_respawnAt", Date.now());
+    setRespawnQuip(pickRespawnQuip());
   };
 
   const enterLobby = () => {
     rejoin();
+    setPlayQuip(pickPlayQuip());
     setGameState("lobby");
   };
 
@@ -519,7 +603,8 @@ export const UI = () => {
 
   return (
     <>
-       {gameState === "title" && <TitleScreen onEnterLobby={enterLobby} />}
+       <GamepadDebug />
+       {gameState === "title" && <TitleScreen onEnterLobby={enterLobby} quip={titleQuip} playQuip={playQuip} />}
       {gameState === "loading" && loadingSlide && (
       <div
         className={`fixed z-30 inset-0 bg-black text-white flex flex-col items-center justify-center gap-6 pointer-events-none transition-transform duration-500 isolate
@@ -530,6 +615,9 @@ export const UI = () => {
         <div className="relative z-10 flex flex-col items-center gap-6 px-4 py-8 text-center">
           <div className="text-5xl sm:text-7xl font-black tracking-[0.22em] uppercase text-white drop-shadow-[0_0_24px_rgba(103,232,249,0.35)]">
             Get Ready
+          </div>
+          <div className="text-[clamp(0.95rem,2vw,1.35rem)] text-white/70">
+            {loadingQuip}
           </div>
           <div className="relative w-[min(76vw,30rem)] overflow-visible rounded-[1.75rem] border border-white/12 bg-white/5 p-4 sm:p-5 shadow-[0_0_80px_rgba(34,211,238,0.12)] backdrop-blur-md">
             <div className="absolute inset-0 rounded-[2rem] bg-[radial-gradient(circle_at_50%_25%,rgba(34,211,238,0.14),transparent_42%),radial-gradient(circle_at_50%_75%,rgba(168,85,247,0.1),transparent_40%)]" />
@@ -565,12 +653,13 @@ export const UI = () => {
       )}
       {me && <BoardSelector me={me} menuOpen={menuOpen} />}
       {gameState === "game" && !menuOpen && <BoostMeter />}
+      {gameState === "game" && !menuOpen && <HeatMeter />}
       {gameState === "game" && isTouchDevice && <EcctrlTouchControls />}
       {gameState === "lobby" && isHost() && (
         <div className="fixed bottom-4 right-4 z-10 w-[min(92vw,24rem)] flex flex-col gap-3 items-stretch sm:items-end">
           <button
             ref={(el) => { lobbyActionRefs.current[0] = el; }}
-            className="ui-button min-h-14 w-full sm:w-auto px-5 py-4 bg-gray-100 text-black text-2xl sm:text-3xl rounded-md touch-manipulation"
+            className="ui-button min-h-14 w-full sm:w-auto px-8 py-4 bg-gray-100 text-black text-2xl sm:text-3xl rounded-md touch-manipulation"
             onClick={() => {
               requestGamePointerLock();
               setGameState("loading");
@@ -579,11 +668,11 @@ export const UI = () => {
               }, 500);
             }}
           >
-            Practice
+            {practiceQuip}
           </button>
           <button
             ref={(el) => { lobbyActionRefs.current[1] = el; }}
-            className="ui-button min-h-14 w-full sm:w-auto px-6 py-4 bg-gray-100 text-black text-2xl rounded-md touch-manipulation"
+            className="ui-button min-h-14 w-full sm:w-auto px-8 py-4 bg-gray-100 text-black text-2xl sm:text-3xl rounded-md touch-manipulation"
             onClick={async () => {
               requestGamePointerLock();
               setGameState("loading");
@@ -617,14 +706,14 @@ export const UI = () => {
           onClick={invite}
           disabled={invited}
         >
-          {invited ? "Link copied to clipboard" : "Invite"}
+          {invited ? "Go paste" : "Invite"}
         </button>
         {gameState === "game" && (
           <button
-            className="ui-button min-h-14 px-8 py-3 bg-gray-100 text-black text-2xl sm:text-3xl rounded-md flex items-center gap-2 touch-manipulation"
+            className="ui-button min-h-14 px-8 py-3 bg-gray-100 text-black text-xl sm:text-2xl rounded-md flex items-center gap-2 touch-manipulation"
             onClick={respawn}
           >
-            Respawn
+            {respawnQuip}
           </button>
         )}
         {isTestMode && gameState === "game" && (
@@ -638,37 +727,55 @@ export const UI = () => {
         {isTestMode && gameState === "game" && me && <VehicleDebugHUD me={me} />}
       </div>
       {nameEditing && (
-        <div className="fixed z-20 inset-0 flex items-center justify-center flex-col gap-2 bg-black bg-opacity-20 backdrop-blur-sm">
-          <input
-            autoFocus
-            className="p-3"
-            value={nameInput}
-            onChange={(e) => setNameInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                me?.setState("name", nameInput);
-                setNameEditing(false);
-              }
-            }}
-          />
-          <div className="flex items-center gap-2">
-            <button
-              className="ui-button px-8 py-2 bg-red-400 text-white text-2xl sm:text-3xl rounded-md"
-              onClick={() => {
-                setNameEditing(false);
+        <div className="fixed z-20 inset-0 flex items-center justify-center bg-black/40 backdrop-blur-md">
+          <div className="w-[min(92vw,28rem)] rounded-3xl border border-white/12 bg-slate-950/90 p-7 text-center shadow-[0_30px_100px_rgba(0,0,0,0.6)] backdrop-blur-xl">
+            <div className="text-[clamp(1.6rem,5vw,2.4rem)] font-black uppercase tracking-[0.22em] text-white drop-shadow-[0_0_24px_rgba(103,232,249,0.35)]">
+              Name
+            </div>
+            <div className="mt-1 text-[13px] uppercase tracking-[0.22em] text-cyan-300/80">
+              {nameQuip}
+            </div>
+            <input
+              autoFocus
+              maxLength={18}
+              className="mt-5 w-full rounded-xl border border-white/15 bg-black/40 px-4 py-3 text-center text-2xl font-black uppercase tracking-[0.18em] text-white outline-none transition focus:border-cyan-300/70 focus:shadow-[0_0_0_3px_rgba(103,232,249,0.25)]"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  me?.setState("name", nameInput);
+                  setNameEditing(false);
+                }
+                if (e.key === "Escape") {
+                  setNameEditing(false);
+                }
               }}
-            >
-              ✗
-            </button>
-            <button
-              className="ui-button px-8 py-2 bg-green-400 text-white text-2xl sm:text-3xl rounded-md"
-              onClick={() => {
-                me?.setState("name", nameInput);
-                setNameEditing(false);
-              }}
-            >
-              ✓
-            </button>
+            />
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <button
+                aria-label="Cancel"
+                className="ui-button flex h-14 w-14 items-center justify-center rounded-xl bg-gray-100 text-black touch-manipulation"
+                onClick={() => {
+                  setNameEditing(false);
+                }}
+              >
+                <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                  <path d="M6 6 L18 18 M18 6 L6 18" />
+                </svg>
+              </button>
+              <button
+                aria-label="Save"
+                className="ui-button flex h-14 w-14 items-center justify-center rounded-xl bg-gray-100 text-black touch-manipulation"
+                onClick={() => {
+                  me?.setState("name", nameInput);
+                  setNameEditing(false);
+                }}
+              >
+                <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 12.5 L10 18.5 L20 5.5" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -156,6 +156,19 @@ export class SpaceRaceServer extends Server {
         });
         return;
       }
+
+      if (event.type === "beam") {
+        // Relay sustained beam state (start/stop/refresh) to all clients.
+        this.broadcastJson({
+          type: "beam",
+          ownerId: event.ownerId,
+          pos: event.pos,
+          dir: event.dir,
+          beamLength: event.beamLength,
+          active: event.active,
+        });
+        return;
+      }
     } catch {
       // Ignore invalid JSON messages
     }

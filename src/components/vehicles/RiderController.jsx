@@ -3,15 +3,18 @@ import { CuboidCollider, CylinderCollider, useBeforePhysicsStep, useRapier } fro
 import { EcctrlCameraControls } from "ecctrl/camera";
 import { useButtonStore, useJoystickStore } from "ecctrl/input";
 import { EcctrlVehicle, ShapeCastWheel, ThrustPropeller } from "ecctrl/vehicle";
-import { myPlayer, usePlayerState, send, setDamageHandler } from "../../multiplayer/party";
+import { myPlayer, usePlayerState, send, setDamageHandler, getInterpolatedTransform } from "../../multiplayer/party";
 import {
-  fireLaser,
-  FIRE_COOLDOWN,
-  LASER_TTL,
-  LASER_SPEED,
+  fireBeam,
+  BEAM_LENGTH,
+  OVERHEAT_TIME,
+  COOL_RATE,
   KNOCKBACK,
+  KNOCKBACK_PREDICT_MAG,
 } from "./laserStore";
+import { consumeKnockback } from "./knockbackPredict";
 import { useHealthStore } from "./healthStore";
+import { useHeatStore } from "./heatStore";
 import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Quaternion, Vector3 } from "three";
@@ -29,15 +32,24 @@ import { GameMenuOpenAtom } from "../ui/UI";
 import { GameReadyAtom } from "../ui/debugState";
 import { useSetAtom } from "jotai";
 import { PlayerNameTag } from "../environment/PlayerNameTag";
-import { useGamepadRef } from "../ui/gamepadStore";
+import { useGamepadRef, getGamepadState, TRIGGER_DEADZONE } from "../ui/gamepadStore";
 import { setBoost } from "../ui/boostStore";
 import { usePlayerSettings } from "../ui/playerSettingsStore";
+import {
+  fireLaser,
+  LASER_TTL,
+  LASER_SPEED,
+  LASER_DAMAGE,
+  HOLD_THRESHOLD,
+  HEAT_PER_SHOT,
+} from "./laserStore";
 
 const ARCADE_JUMP_IMPULSE = 360;
 const WORLD_UP = new Vector3(0, 1, 0);
-const BOOST_DRAIN = 0.4;
-const BOOST_RECHARGE = 0.28;
-const BOOST_LOCK_THRESHOLD = 0.25;
+  const BOOST_DRAIN = 0.22;
+  const BOOST_RECHARGE = 0.32;
+  const BOOST_LOCK_THRESHOLD = 0.2;
+  const BOOST_BURST = 22;
 
 // Reused temps to avoid per-frame allocations (GC stutter).
 const _qPrev = new Quaternion();
@@ -168,6 +180,7 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
   const mouseLook = useRef({ x: 0, y: 0 });
   const pointerLocked = useRef(false);
   const fireHeld = useRef(false);
+  const triggerHeld = useRef(false);
   const onFireRef = useRef(onFire);
   onFireRef.current = onFire;
   const mouseButtonsConfigured = useRef(false);
@@ -185,7 +198,9 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
   const [boostActive, setBoostActive] = useState(false);
   const boostEnergy = useRef(1);
   const boostLocked = useRef(false);
-  const boostMultiplier = boostActive ? tuning.common.boostMultiplier ?? 1 : 1;
+  const boostMultiplier = boostActive ? tuning.common.boostMultiplier ?? 1.45 : 1;
+  const BOOST_SPEED_MULT = 3.2;
+  const BOOST_VERT_MULT = 2.6;
   const menuOpen = useAtomValue(GameMenuOpenAtom);
   const gamepadRef = useGamepadRef();
   const keys = useRef({
@@ -203,16 +218,19 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
   isDroneRef.current = isDrone;
   const lastRespawnAt = useRef(0);
   const spawnPoint = useRef(null);
-  const remotePrev = useRef(null);
-  const remoteTarget = useRef(null);
   const lastJumpAt = useRef(0);
+  const wasBoosting = useRef(false);
+  const boostImpulseDone = useRef(false);
   const lastDebugAt = useRef(0);
   const jumpRequested = useRef(false);
   const ecctrlJoystick = useRef({ active: false, x: 0, y: 0 });
   const ecctrlButtons = useRef({ b1: false, b2: false, b3: false, b4: false });
-  const firing = useRef(false);
-  const lastFireAt = useRef(0);
-  const fireRef = useRef(() => {});
+  const beamSlot = useRef(null);
+  const heat = useRef(0);
+  const overheated = useRef(false);
+  const lastBeamSyncAt = useRef(0);
+  const pressTime = useRef(0);
+  const firedDiscrete = useRef(false);
   const cachedBodyState = useRef({
     pos: { x: 0, y: 0, z: 0 },
     rot: { x: 0, y: 0, z: 0, w: 1 },
@@ -273,8 +291,8 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
     return {
       ...ECCTRL_DRONE_CONFIG,
       maxYawRate: tuning.drone.maxYawRate,
-      maxHorizSpeed: tuning.drone.maxHorizSpeed * tuning.common.speedMultiplier * boostMultiplier,
-      maxVertSpeed: tuning.drone.maxVertSpeed * tuning.common.speedMultiplier * boostMultiplier,
+      maxHorizSpeed: tuning.drone.maxHorizSpeed * tuning.common.speedMultiplier * (boostActive ? BOOST_SPEED_MULT : 1),
+      maxVertSpeed: tuning.drone.maxVertSpeed * tuning.common.speedMultiplier * (boostActive ? BOOST_VERT_MULT : 1),
       maxTiltAngle: tuning.drone.maxTiltAngle,
       airDragFactor: tuning.drone.airDragFactor,
       TILT_P: tuning.drone.TILT_P,
@@ -360,11 +378,16 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
     const onMouseDown = (e) => {
       if (e.button !== 0) return;
       if (document.pointerLockElement !== canvas) return;
+      if (overheated.current || fireHeld.current || triggerHeld.current) return;
       fireHeld.current = true;
-      fireRef.current?.();
+      pressTime.current = performance.now() / 1000;
+      firedDiscrete.current = false;
     };
     const onMouseUp = (e) => {
-      if (e.button === 0) fireHeld.current = false;
+      if (e.button !== 0) return;
+      const quickTap = !firedDiscrete.current && !overheated.current && performance.now() / 1000 - pressTime.current < HOLD_THRESHOLD;
+      fireHeld.current = false;
+      if (quickTap) fireDiscreteShotRef.current();
     };
     const onCanvasClick = () => {
       if (menuOpen || gamepadRef.current.connected) return;
@@ -399,34 +422,38 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
     if (menuOpen && document.pointerLockElement) document.exitPointerLock();
   }, [menuOpen]);
 
-  // Spawn a laser from the UFO muzzle, travelling along the dog's forward
-  // (+ body) axis. Local-only: the network echo is handled by the server relay.
-  const tryFire = () => {
+  const pack = (v) => ({ x: v.x, y: v.y, z: v.z });
+
+  // Muzzle + forward direction of the dog/UFO in world space.
+  const getMuzzleDir = () => {
     const handle = vehicle.current;
     const body = handle?.body;
-    if (!body || menuOpen) return;
-    const now = performance.now();
-    if (now - lastFireAt.current < FIRE_COOLDOWN * 1000) return;
-    lastFireAt.current = now;
-
+    if (!body) return null;
     const t = body.translation();
     const fwd = handle.bodyZAxis;
     const muzzle = new Vector3(t.x, t.y, t.z).addScaledVector(fwd, 1.2);
     muzzle.y += 0.3;
     const dir = new Vector3(fwd.x, fwd.y, fwd.z).normalize();
-
-    fireLaser({ pos: muzzle, dir, ownerId: me.id });
-    send({
-      type: "laser",
-      ownerId: me.id,
-      pos: { x: muzzle.x, y: muzzle.y, z: muzzle.z },
-      dir: { x: dir.x, y: dir.y, z: dir.z },
-      ttl: LASER_TTL,
-      speed: LASER_SPEED,
-    });
-    onFireRef.current?.(muzzle, dir);
+    return { muzzle, dir };
   };
-  fireRef.current = tryFire;
+
+  // Single discrete shot (a quick click). Builds heat like the beam so spamming overheats.
+  const fireDiscreteShot = () => {
+    if (overheated.current) return;
+    const md = getMuzzleDir();
+    if (!md) return;
+    const s = fireLaser({ pos: md.muzzle, dir: md.dir, ownerId: me.id, damage: LASER_DAMAGE, speed: LASER_SPEED, ttl: LASER_TTL });
+    if (s) {
+      send({ type: "laser", ownerId: me.id, pos: pack(md.muzzle), dir: pack(md.dir), speed: LASER_SPEED, ttl: LASER_TTL, damage: LASER_DAMAGE });
+      onFireRef.current?.(md.muzzle, md.dir);
+    }
+    heat.current = Math.min(OVERHEAT_TIME, heat.current + HEAT_PER_SHOT);
+    if (heat.current >= OVERHEAT_TIME) overheated.current = true;
+    useHeatStore.getState().set({ heat: heat.current / OVERHEAT_TIME, overheated: overheated.current });
+    firedDiscrete.current = true;
+  };
+  const fireDiscreteShotRef = useRef(fireDiscreteShot);
+  fireDiscreteShotRef.current = fireDiscreteShot;
 
   useEffect(() => {
     if (!isLocal) return;
@@ -444,7 +471,7 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
           { x: lv.x + k.x, y: lv.y + KNOCKBACK * 0.4 + k.y, z: lv.z + k.z },
           true
         );
-        body.setAngvel({ x: (Math.random() - 0.5) * 6, y: 0, z: (Math.random() - 0.5) * 6 }, true);
+        body.setAngvel({ x: (Math.random() - 0.5) * 3, y: 0, z: (Math.random() - 0.5) * 3 }, true);
       }
     });
     return () => setDamageHandler(null);
@@ -509,6 +536,16 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
     body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
+
+    // Reset cannon heat + drop any active beam on respawn.
+    heat.current = 0;
+    overheated.current = false;
+    if (beamSlot.current) {
+      beamSlot.current.active = false;
+      beamSlot.current.isBeam = false;
+      beamSlot.current = null;
+    }
+    useHeatStore.getState().set({ heat: 0, overheated: false });
   };
 
   const [isSpawned, setIsSpawned] = useState(true);
@@ -538,8 +575,63 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
       return;
     }
 
-    const pad = gamepadRef.current;
-    if (isLocal && (fireHeld.current || pad.axes.rt > 0.12 || pad.buttons.rt)) fireRef.current?.();
+    const pad = getGamepadState();
+    const nowS = performance.now() / 1000;
+    // Controller trigger (analog RT axis or digital button). Treat it exactly
+    // like the mouse hold: a quick pull = discrete shot, holding = sustained
+    // beam. The rising edge starts a press; the falling edge ends it.
+    const padDown = isLocal && (pad.axes.rt > TRIGGER_DEADZONE || pad.buttons.rt);
+    if (padDown && !triggerHeld.current) {
+      if (!fireHeld.current && !overheated.current) {
+        triggerHeld.current = true;
+        pressTime.current = nowS;
+        firedDiscrete.current = false;
+      }
+    } else if (!padDown && triggerHeld.current) {
+      const quickTap = !firedDiscrete.current && !overheated.current && nowS - pressTime.current < HOLD_THRESHOLD;
+      triggerHeld.current = false;
+      if (quickTap) fireDiscreteShotRef.current();
+    }
+
+    const heldFire = isLocal && (fireHeld.current || triggerHeld.current) && nowS - pressTime.current >= HOLD_THRESHOLD;
+    const beamActive = heldFire && !overheated.current;
+
+    // --- Sustained beam + overheat ---
+    const md = getMuzzleDir();
+    if (md) {
+      if (beamActive) {
+        heat.current = Math.min(OVERHEAT_TIME, heat.current + delta);
+        if (heat.current >= OVERHEAT_TIME) overheated.current = true;
+      } else {
+        heat.current = Math.max(0, heat.current - delta * COOL_RATE);
+        if (overheated.current && heat.current <= 0) overheated.current = false;
+      }
+
+      if (beamActive) {
+        if (!beamSlot.current) {
+          beamSlot.current = fireBeam({ pos: md.muzzle, dir: md.dir, ownerId: me.id, beamLength: BEAM_LENGTH });
+          send({ type: "beam", ownerId: me.id, pos: pack(md.muzzle), dir: pack(md.dir), beamLength: BEAM_LENGTH, active: true });
+          onFireRef.current?.(md.muzzle, md.dir);
+        } else {
+          beamSlot.current.pos.copy(md.muzzle);
+          beamSlot.current.prev.copy(md.muzzle);
+          beamSlot.current.dir.copy(md.dir);
+          beamSlot.current.ttl = 0.2;
+          const nowS = performance.now() / 1000;
+          if (nowS - lastBeamSyncAt.current >= 0.08) {
+            lastBeamSyncAt.current = nowS;
+            send({ type: "beam", ownerId: me.id, pos: pack(md.muzzle), dir: pack(md.dir), beamLength: BEAM_LENGTH, active: true });
+          }
+        }
+      } else if (beamSlot.current) {
+        beamSlot.current.active = false;
+        beamSlot.current.isBeam = false;
+        beamSlot.current = null;
+        send({ type: "beam", ownerId: me.id, pos: pack(md.muzzle), dir: pack(md.dir), beamLength: BEAM_LENGTH, active: false });
+      }
+
+      useHeatStore.getState().set({ heat: heat.current / OVERHEAT_TIME, overheated: overheated.current });
+    }
     const joystickL = mergedJoystickInput(controls, ecctrlJoystick.current);
     const gamepadForward = pad.axes.rt > 0.12;
     const gamepadBack = pad.axes.lt > 0.12;
@@ -563,6 +655,18 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
         if (canBoost !== boostActive) setBoostActive(canBoost);
         setBoost(boostEnergy.current, canBoost, boostLocked.current);
 
+        if (canBoost && !boostImpulseDone.current) {
+          boostImpulseDone.current = true;
+          const fwd = handle.bodyZAxis;
+          const horiz = new Vector3(fwd.x, 0, fwd.z);
+          if (horiz.lengthSq() > 1e-4) {
+            horiz.normalize().multiplyScalar(BOOST_BURST);
+            const v = handle.body.linvel();
+            handle.body.setLinvel({ x: v.x + horiz.x, y: v.y, z: v.z + horiz.z }, true);
+          }
+        }
+        if (!canBoost) boostImpulseDone.current = false;
+
         if (cameraControls.current) {
           cameraControls.current.moveTo(handle.currPos.x, handle.currPos.y + tuning.common.cameraHeight, handle.currPos.z, true);
           cameraUp.current.copy(isDrone ? WORLD_UP : handle.upAxis);
@@ -576,6 +680,26 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
           if (Math.abs(pad.axes.ry) > 0.08) {
             cameraControls.current.rotate(0, (settings.invertLookY ? pad.axes.ry : -pad.axes.ry) * turn, true);
           }
+
+          // D-pad up/down zooms the camera in/out (clamped by min/maxDistance).
+          // Applied without transition so each frame's step takes effect
+          // immediately (the smoothTime-based transition would otherwise eat
+          // the small per-frame deltas, the way the mouse-wheel jumps do not).
+          // Raw D-pad only — left-stick up/down must not zoom on either vehicle.
+          const zoomIn = pad.dpadUp;
+          const zoomOut = pad.dpadDown;
+          const zoomSpeed = 18;
+          window.__zoomDebug = {
+            dpadUp: zoomIn,
+            dpadDown: zoomOut,
+            dist: cameraControls.current.getDistance ? cameraControls.current.getDistance() : null,
+            min: cameraControls.current.minDistance,
+            max: cameraControls.current.maxDistance,
+            colliders: cameraControls.current.colliderMeshes ? cameraControls.current.colliderMeshes.length : -1,
+            hasCC: !!cameraControls.current,
+          };
+          if (zoomIn) cameraControls.current.dolly(zoomSpeed * delta, false);
+          if (zoomOut) cameraControls.current.dolly(-zoomSpeed * delta, false);
 
           if (!mouseButtonsConfigured.current && cameraControls.current) {
             cameraControls.current.mouseButtons.left = -1;
@@ -612,10 +736,10 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
         const mobile = ecctrlJoystick.current.active ? joystickL : { x: 0, y: 0 };
 
         const pitchForward = keys.current.forward || stickFwd > 0.2 || mobile.y > 0.2 || canBoost;
-        const pitchBackward = (keys.current.back || stickFwd < -0.2 || mobile.y < -0.2) && !canBoost;
+        const pitchBackward = keys.current.back || stickFwd < -0.2 || mobile.y < -0.2;
+        const throttleUp = keys.current.up || pad.buttons.a;
         const rollLeft = keys.current.left || stickStrafe < -0.2 || mobile.x < -0.2;
         const rollRight = keys.current.right || stickStrafe > 0.2 || mobile.x > 0.2;
-        const throttleUp = keys.current.up || pad.buttons.a;
         const throttleDown = keys.current.down || pad.buttons.b;
 
         let autoYaw = 0;
@@ -673,6 +797,7 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
       }
       state.setState("pos", cachedBodyState.current.pos);
       state.setState("rot", cachedBodyState.current.rot);
+      state.setState("vel", cachedBodyState.current.linvel);
       if (getGroundHeight) {
         const pos = cachedBodyState.current.pos;
         if (pos.y < getGroundHeight(pos.x, pos.z) - 120) respawn();
@@ -719,36 +844,33 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
         }
       }
       } else if (!isLocal) {
-        const netPos = state.getState("pos");
-        const netRot = state.getState("rot");
-        const now = performance.now();
-        if (netPos) {
-          const target = remoteTarget.current;
-          // Treat a changed network sample as a new snapshot.
-          if (
-            !target ||
-            target.pos.x !== netPos.x ||
-            target.pos.y !== netPos.y ||
-            target.pos.z !== netPos.z
-          ) {
-            remotePrev.current = target
-              ? { pos: target.pos, rot: target.rot, t: target.t }
-              : { pos: netPos, rot: netRot, t: now };
-            remoteTarget.current = { pos: netPos, rot: netRot, t: now };
+        // Snapshot interpolation: render this remote avatar at a fixed delay
+        // behind real time, lerped between the two network snapshots that
+        // bracket the render time. We never extrapolate past known data, so
+        // there is no overshoot/snap-back when packets arrive.
+        const snap = getInterpolatedTransform(state.id);
+        if (snap && snap.pos) {
+          let px = snap.pos.x;
+          let py = snap.pos.y;
+          let pz = snap.pos.z;
+          // Predicted knockback: nudge the victim's avatar immediately on this
+          // screen so the hit reads as instant, then reconcile to zero as the
+          // interpolated network position catches up.
+          const kb = consumeKnockback(state.id, { x: px, y: py, z: pz }, delta);
+          if (kb) {
+            px += kb.x;
+            py += kb.y;
+            pz += kb.z;
           }
-          const prev = remotePrev.current;
-          const cur = remoteTarget.current;
-          const span = cur.t - prev.t;
-          const alpha = span > 0 ? Math.min(1, (now - prev.t) / span) : 1;
-          const px = prev.pos.x + (cur.pos.x - prev.pos.x) * alpha;
-          const py = prev.pos.y + (cur.pos.y - prev.pos.y) * alpha;
-          const pz = prev.pos.z + (cur.pos.z - prev.pos.z) * alpha;
-          handle.body.setNextKinematicTranslation({ x: px, y: py, z: pz });
-          if (prev.rot && cur.rot) {
-            _qPrev.set(prev.rot.x, prev.rot.y, prev.rot.z, prev.rot.w);
-            _qTarget.set(cur.rot.x, cur.rot.y, cur.rot.z, cur.rot.w);
-            _qPrev.slerp(_qTarget, alpha);
-            handle.body.setNextKinematicRotation({ x: _qPrev.x, y: _qPrev.y, z: _qPrev.z, w: _qPrev.w });
+          // Rapier traps (wasm "unreachable") on non-finite transforms, which
+          // then cascades into alias errors during the step. Never feed it NaN.
+          if (Number.isFinite(px) && Number.isFinite(py) && Number.isFinite(pz)) {
+            handle.body.setNextKinematicTranslation({ x: px, y: py, z: pz });
+            if (snap.rot && Number.isFinite(snap.rot.x) && Number.isFinite(snap.rot.w)) {
+              handle.body.setNextKinematicRotation({ x: snap.rot.x, y: snap.rot.y, z: snap.rot.z, w: snap.rot.w });
+            }
+          } else {
+            console.warn("[RiderController] dropped non-finite remote transform for", state.id);
           }
         }
       }

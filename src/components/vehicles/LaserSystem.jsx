@@ -8,15 +8,17 @@ import {
   Object3D,
   Vector3,
 } from "three";
-import { myPlayer, usePlayersList, send } from "../../multiplayer/party";
+import { myPlayer, usePlayersList, send, getInterpolatedTransform } from "../../multiplayer/party";
 import {
   getLaserPool,
   HIT_RADIUS,
   LASER_DAMAGE,
-  LASER_LENGTH,
-  LASER_RADIUS,
   LASER_TTL,
+  BEAM_DAMAGE_PER_SEC,
+  BEAM_TICK,
+  KNOCKBACK_PREDICT_MAG,
 } from "./laserStore";
+import { predictKnockback } from "./knockbackPredict";
 
 // Squared distance from point p to segment [a,b].
 function pointSegmentDistanceSq(p, a, b) {
@@ -53,10 +55,23 @@ export function LaserSystem({ getGroundHeight }) {
   // Reused scratch objects — zero per-frame allocations.
   const dummy = useMemo(() => new Object3D(), []);
   const target = useMemo(() => new Vector3(), []);
+  const center = useMemo(() => new Vector3(), []);
   const playerPos = useMemo(() => new Vector3(), []);
+  const beamEnd = useMemo(() => new Vector3(), []);
+
+  // Where a remote player is drawn this frame (interpolated), so hit tests line
+  // up with what the shooter actually sees. Falls back to the latest network
+  // pos if interpolation has no data yet.
+  const getRemoteHitPos = (pl) => {
+    if (pl.id === myId) return pl.getState ? pl.getState("pos") : pl.state?.pos;
+    const interp = getInterpolatedTransform(pl.id);
+    return interp?.pos || (pl.getState ? pl.getState("pos") : pl.state?.pos);
+  };
 
   const geometry = useMemo(() => {
-    const geo = new CylinderGeometry(LASER_RADIUS, LASER_RADIUS, LASER_LENGTH, 6, 1, true);
+    // Unit cylinder: radius 1, length 1 along +Z. Per-slot radius/length
+    // are applied via instance scale so shots and beams share one geometry.
+    const geo = new CylinderGeometry(1, 1, 1, 6, 1, true);
     geo.rotateX(Math.PI / 2); // length now runs along +Z
     return geo;
   }, []);
@@ -92,6 +107,61 @@ export function LaserSystem({ getGroundHeight }) {
         continue;
       }
 
+      const now = performance.now() / 1000;
+
+      // Remote beams expire if syncs stop arriving.
+      if (slot.isBeam && slot.ownerId !== myId) {
+        if (now > slot.expireAt) {
+          slot.active = false;
+          dummy.position.set(0, -9999, 0);
+          dummy.scale.set(0, 0, 0);
+          dummy.updateMatrix();
+          mesh.setMatrixAt(i, dummy.matrix);
+          continue;
+        }
+      }
+
+      if (slot.isBeam) {
+        // Sustained beam: hit-test along its full length, throttled.
+        if (slot.ownerId === myId) {
+          const tick = BEAM_DAMAGE_PER_SEC * BEAM_TICK;
+          if (now - slot.lastDamageAt >= BEAM_TICK) {
+            slot.lastDamageAt = now;
+            beamEnd.copy(slot.pos).addScaledVector(slot.dir, slot.beamLength);
+            for (let p = 0; p < players.length; p++) {
+              const pl = players[p];
+              if (!pl || pl.id === myId) continue;
+              const pos = getRemoteHitPos(pl);
+              if (!pos) continue;
+              playerPos.set(pos.x, pos.y, pos.z);
+              if (
+                pointSegmentDistanceSq(playerPos, slot.pos, beamEnd) <
+                HIT_RADIUS * HIT_RADIUS
+              ) {
+                predictKnockback(pl.id, slot.dir, KNOCKBACK_PREDICT_MAG);
+                send({
+                  type: "damage",
+                  targetId: pl.id,
+                  amount: tick,
+                  sourceId: myId,
+                  knockDir: { x: slot.dir.x, y: slot.dir.y, z: slot.dir.z },
+                });
+              }
+            }
+          }
+        }
+        // Render: cylinder is centered, so shift back half-length so it
+        // starts at the muzzle and extends forward.
+        center.copy(slot.pos).addScaledVector(slot.dir, slot.beamLength * 0.5);
+        target.copy(slot.pos).addScaledVector(slot.dir, slot.beamLength);
+        dummy.position.copy(center);
+        dummy.lookAt(target);
+        dummy.scale.set(slot.radius, slot.radius, slot.length);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+        continue;
+      }
+
       slot.ttl -= dt;
       slot.prev.copy(slot.pos);
       slot.pos.addScaledVector(slot.dir, slot.speed * dt);
@@ -108,13 +178,14 @@ export function LaserSystem({ getGroundHeight }) {
         for (let p = 0; p < players.length; p++) {
           const pl = players[p];
           if (!pl || pl.id === myId) continue;
-          const pos = pl.getState ? pl.getState("pos") : pl.state?.pos;
+          const pos = getRemoteHitPos(pl);
           if (!pos) continue;
           playerPos.set(pos.x, pos.y, pos.z);
           // Distance from rider center to the segment travelled this frame,
           // so fast lasers can't tunnel past a target between frames.
           if (pointSegmentDistanceSq(playerPos, slot.prev, slot.pos) < HIT_RADIUS * HIT_RADIUS) {
             hit = true;
+            predictKnockback(pl.id, slot.dir, KNOCKBACK_PREDICT_MAG);
             send({
               type: "damage",
               targetId: pl.id,
@@ -140,7 +211,7 @@ export function LaserSystem({ getGroundHeight }) {
       target.copy(slot.pos).add(slot.dir);
       dummy.position.copy(slot.pos);
       dummy.lookAt(target); // +Z aligned with travel dir
-      dummy.scale.set(1, 1, 1);
+      dummy.scale.set(slot.radius, slot.radius, slot.length);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
     }

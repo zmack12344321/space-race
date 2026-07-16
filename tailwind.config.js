@@ -4,7 +4,7 @@ export default {
   theme: {
     extend: {},
     fontFamily: {
-      sans: ["Passion One", "sans-serif"],
+      sans: ["Ethnocentric", "Passion One", "sans-serif"],
     },
   },
   plugins: [],

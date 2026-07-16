@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 
 const AXIS_DEADZONE = 0.18;
-const TRIGGER_DEADZONE = 0.12;
+export const TRIGGER_DEADZONE = 0.12;
 const STICK_NAV_THRESHOLD = 0.55;
 
 const EMPTY_BUTTONS = {

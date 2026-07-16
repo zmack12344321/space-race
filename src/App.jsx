@@ -2,6 +2,7 @@ import { Canvas } from "@react-three/fiber";
 import { useAtom } from "jotai";
 import * as THREE from "three";
 import { AdaptiveDpr, AdaptiveEvents, PerformanceMonitor, Preload } from "@react-three/drei";
+import { EffectComposer } from "@react-three/postprocessing";
 import { Experience } from "./components/core/Experience";
 import { UI } from "./components/ui/UI";
 import { PhysicsDebugAtom } from "./components/ui/debugState";
@@ -25,7 +26,7 @@ function App() {
         shadows={{ type: THREE.PCFShadowMap }}
         dpr={[1, 2]}
         gl={{
-          antialias: window.devicePixelRatio <= 1,
+          antialias: true,
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 0.65,
         }}
@@ -37,9 +38,15 @@ function App() {
         <color attach="background" args={["#02040a"]} />
         <PerformanceMonitor>
           <AdaptiveEvents />
-          <AdaptiveDpr pixelated />
+          <AdaptiveDpr />
           <Preload all />
-          <Experience level={isTestMode ? "skatepark" : "lunar"} physicsDebug={physicsDebug} debugMode={isTestMode} />
+          <EffectComposer multisampling={4} />
+          <Experience
+            level={isTestMode ? "skatepark" : "lunar"}
+            physicsDebug={physicsDebug}
+            debugMode={isTestMode}
+            skyMode="purple"
+          />
         </PerformanceMonitor>
       </Canvas>
     </>

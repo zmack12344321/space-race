@@ -30,7 +30,7 @@ function GravitySetup() {
   return null;
 }
 
-export const Game = ({ level = "lunar", physicsDebug = false, debugMode = false }) => {
+export const Game = ({ level = "lunar", physicsDebug = false, debugMode = false, skyMode = "blue" }) => {
   const [players, setPlayers] = useState([]);
   const paused = useAtomValue(GameMenuOpenAtom);
   const [sunAngle] = useMultiplayerState("sunAngle", 0.3);
@@ -73,7 +73,7 @@ export const Game = ({ level = "lunar", physicsDebug = false, debugMode = false 
   return (
     <group>
       {level === "lunar" ? (
-        <LunarEnvironment />
+        <LunarEnvironment skyMode={skyMode} />
       ) : (
         <>
           <ambientLight intensity={fillIntensity} color="#7f8bad" />

@@ -148,6 +148,19 @@ export default class Server {
       });
       return;
     }
+
+    if (event.type === "beam") {
+      // Relay sustained beam state (start/stop/refresh) to all clients.
+      this.broadcast({
+        type: "beam",
+        ownerId: event.ownerId,
+        pos: event.pos,
+        dir: event.dir,
+        beamLength: event.beamLength,
+        active: event.active,
+      });
+      return;
+    }
   }
 
   onClose(connection) {
