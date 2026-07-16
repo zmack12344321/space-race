@@ -56,6 +56,7 @@ export function Lobby(props) {
     players = MOCK_PLAYERS,
     me = MOCK_PLAYERS[0],
     showUi = true,
+    hostId = me?.id,
   } = props;
   const [, setNameEditing] = useAtom(NameEditingAtom);
 
@@ -113,6 +114,13 @@ export function Lobby(props) {
               onEdit={() => setNameEditing(true)}
               editable
             />
+          )}
+
+          {/* Crown floating above the party leader (host). */}
+          {player.id === hostId && (
+            <group name="Crown" position={[0, 2.5, 0]}>
+              <Crown />
+            </group>
           )}
 
           {/* Rider — floats with a soft bob while customizing in the lobby */}
@@ -286,6 +294,34 @@ function LightBeam({
       <cylinderGeometry args={[radiusTop, radiusBottom, height, 64, 1, true]} />
       <primitive object={material} attach="material" />
     </mesh>
+  );
+}
+
+// Golden crown that hovers above the party leader (host) in the lobby.
+function Crown() {
+  const ref = useRef();
+  useFrame(({ clock }) => {
+    if (ref.current) {
+      ref.current.rotation.y = clock.getElapsedTime() * 0.8;
+      ref.current.position.y = 2.5 + Math.sin(clock.getElapsedTime() * 2) * 0.08;
+    }
+  });
+  return (
+    <group ref={ref} name="CrownModel" scale={[0.22, 0.22, 0.22]}>
+      <mesh castShadow>
+        <cylinderGeometry args={[0.55, 0.7, 0.35, 6]} />
+        <meshStandardMaterial color="#ffd34d" emissive="#a8791a" emissiveIntensity={0.4} metalness={0.9} roughness={0.25} toneMapped={false} />
+      </mesh>
+      {[0, 1, 2, 3, 4, 5].map((i) => {
+        const angle = (i / 6) * Math.PI * 2;
+        return (
+          <mesh key={i} castShadow position={[Math.cos(angle) * 0.6, 0.3, Math.sin(angle) * 0.6]}>
+            <coneGeometry args={[0.12, 0.32, 4]} />
+            <meshStandardMaterial color="#ffd34d" emissive="#a8791a" emissiveIntensity={0.4} metalness={0.9} roughness={0.25} toneMapped={false} />
+          </mesh>
+        );
+      })}
+    </group>
   );
 }
 

@@ -538,6 +538,10 @@ export function myPlayer() {
   return localPlayer;
 }
 
+export function getHostId() {
+  return hostId;
+}
+
 export function isHost() {
   return Boolean(localPlayer?.id && (!hostId || localPlayer.id === hostId));
 }

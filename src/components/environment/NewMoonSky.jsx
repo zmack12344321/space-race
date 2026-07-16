@@ -4,11 +4,11 @@ import { useMemo, useRef } from "react";
 
 const SKYBOXES = {
   blue: {
-    path: "/_assets-to-import/skybox-blue/",
+    path: "/skybox-blue/",
     files: ["right-512.jpg", "left-512.jpg", "top-512.jpg", "bottom-512.jpg", "front-512.jpg", "back-512.jpg"],
   },
   purple: {
-    path: "/_assets-to-import/skybox-purple/",
+    path: "/skybox-purple/",
     files: ["right-512.jpg", "left-512.jpg", "top-512.jpg", "bottom-512.jpg", "front-512.jpg", "back-512.jpg"],
   },
 };

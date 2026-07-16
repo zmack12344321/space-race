@@ -4,25 +4,25 @@ import { usePlayerSettings } from "./playerSettingsStore";
 
 export const INPUT_PROMPTS = {
   keyboard: {
-    move: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Keyboard & Mouse/Vector/keyboard_w_outline.svg", import.meta.url).href,
-    jump: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Keyboard & Mouse/Vector/keyboard_space_outline.svg", import.meta.url).href,
-    boost: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Keyboard & Mouse/Vector/keyboard_shift_outline.svg", import.meta.url).href,
-    brake: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Keyboard & Mouse/Vector/keyboard_e_outline.svg", import.meta.url).href,
-    reverse: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Keyboard & Mouse/Vector/keyboard_s_outline.svg", import.meta.url).href,
-    menu: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Keyboard & Mouse/Vector/keyboard_escape_outline.svg", import.meta.url).href,
+    move: "/input-prompts/keyboard_w_outline.svg",
+    jump: "/input-prompts/keyboard_space_outline.svg",
+    boost: "/input-prompts/keyboard_shift_outline.svg",
+    brake: "/input-prompts/keyboard_e_outline.svg",
+    reverse: "/input-prompts/keyboard_s_outline.svg",
+    menu: "/input-prompts/keyboard_escape_outline.svg",
   },
   xbox: {
-    move: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Xbox Series/Vector/xbox_stick_l.svg", import.meta.url).href,
-    jump: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Xbox Series/Vector/xbox_button_a_outline.svg", import.meta.url).href,
-    boost: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Xbox Series/Vector/xbox_button_y_outline.svg", import.meta.url).href,
-    brake: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Xbox Series/Vector/xbox_button_b_outline.svg", import.meta.url).href,
-    reverse: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Xbox Series/Vector/xbox_lt_outline.svg", import.meta.url).href,
-    menu: new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Xbox Series/Vector/xbox_button_start_outline.svg", import.meta.url).href,
+    move: "/input-prompts/xbox_stick_l.svg",
+    jump: "/input-prompts/xbox_button_a_outline.svg",
+    boost: "/input-prompts/xbox_button_y_outline.svg",
+    brake: "/input-prompts/xbox_button_b_outline.svg",
+    reverse: "/input-prompts/xbox_lt_outline.svg",
+    menu: "/input-prompts/xbox_button_start_outline.svg",
   },
 };
 
 export const CONTROL_ROWS = [
-  { label: "Move", keyboard: [INPUT_PROMPTS.keyboard.move, new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Keyboard & Mouse/Vector/keyboard_a_outline.svg", import.meta.url).href, new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Keyboard & Mouse/Vector/keyboard_s_outline.svg", import.meta.url).href, new URL("../../../_assets-to-import/kenney_input-prompts_1.5/Keyboard & Mouse/Vector/keyboard_d_outline.svg", import.meta.url).href], xbox: [INPUT_PROMPTS.xbox.move], help: "Drive and steer" },
+  { label: "Move", keyboard: [INPUT_PROMPTS.keyboard.move, "/input-prompts/keyboard_a_outline.svg", "/input-prompts/keyboard_s_outline.svg", "/input-prompts/keyboard_d_outline.svg"], xbox: [INPUT_PROMPTS.xbox.move], help: "Drive and steer" },
   { label: "Jump", keyboard: [INPUT_PROMPTS.keyboard.jump], xbox: [INPUT_PROMPTS.xbox.jump], help: "Pop off the ground" },
   { label: "Boost", keyboard: [INPUT_PROMPTS.keyboard.boost], xbox: [INPUT_PROMPTS.xbox.boost], help: "Hold for extra speed" },
   { label: "Brake / Reverse", keyboard: [INPUT_PROMPTS.keyboard.reverse, INPUT_PROMPTS.keyboard.brake], xbox: [INPUT_PROMPTS.xbox.brake, INPUT_PROMPTS.xbox.reverse], help: "Slow down or back up" },

@@ -2,10 +2,11 @@
   "name": "space-race",
   "main": "worker/server.js",
   "compatibility_date": "2026-07-13",
+  "compatibility_flags": ["nodejs_compat"],
   "durable_objects": {
     "bindings": [
       {
-        "name": "SpaceRaceServer",
+        "name": "Main",
         "class_name": "SpaceRaceServer"
       }
     ]

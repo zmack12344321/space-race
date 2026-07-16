@@ -368,6 +368,10 @@ export const UI = () => {
     me?.setState("_respawnAt", Date.now());
     setRespawnUsed(true);
     setRespawnQuip(pickRespawnQuip());
+    // Respawning from the paused menu should drop you straight back into the
+    // game with mouse capture re-acquired, so PC players can aim again.
+    setMenuOpen(false);
+    requestGamePointerLock();
   };
 
   const enterLobby = () => {

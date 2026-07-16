@@ -1,6 +1,6 @@
 import { CameraControls, PerspectiveCamera } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
-import { myPlayer, usePlayersList } from "../../multiplayer/party";
+import { myPlayer, usePlayersList, getHostId } from "../../multiplayer/party";
 import { useEffect, useRef } from "react";
 import { Vector3 } from "three";
 import { Lobby as LunarLobby } from "../environment/Lobby";
@@ -21,6 +21,7 @@ export const Lobby = () => {
   const me = myPlayer();
   const players = sortLobbyPlayers(usePlayersList(true), me?.id);
   const playerCount = players.length;
+  const hostId = getHostId();
   const isPreviewMode = typeof window !== "undefined" && new URL(window.location.href).searchParams.get("preview") === "1";
 
   const viewport = useThree((state) => state.viewport);
@@ -69,7 +70,7 @@ export const Lobby = () => {
         }}
       />
       <Physics paused>
-        {isPreviewMode ? <LunarPreview players={players} me={me} /> : <LunarLobby players={players} me={me} />}
+        {isPreviewMode ? <LunarPreview players={players} me={me} hostId={hostId} /> : <LunarLobby players={players} me={me} hostId={hostId} />}
       </Physics>
     </>
   );
