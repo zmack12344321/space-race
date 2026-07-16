@@ -1,20 +1,47 @@
 import { Canvas } from "@react-three/fiber";
 import { useAtom } from "jotai";
+import { Suspense, useEffect, useState } from "react";
 import * as THREE from "three";
 import { AdaptiveDpr, AdaptiveEvents, PerformanceMonitor, Preload } from "@react-three/drei";
-import { EffectComposer } from "@react-three/postprocessing";
+import { EffectComposer, SMAA } from "@react-three/postprocessing";
 import { Experience } from "./components/core/Experience";
 import { UI } from "./components/ui/UI";
 import { NetDebugOverlay } from "./components/ui/NetDebugOverlay";
 import { PhysicsDebugAtom } from "./components/ui/debugState";
+import { useGameSettings } from "./components/ui/gameSettingsStore";
 import { useMultiplayerState } from "./multiplayer/party";
 import { ShaderPreview } from "./components/environment/ShaderPreview";
+import { applyAudioSettings } from "./utils/AudioManager";
 
 function App() {
   const isTestMode = window.location.pathname.startsWith("/test");
   const isShaderPreview = window.location.pathname.startsWith("/shader");
   useMultiplayerState("gameState", isTestMode || isShaderPreview ? "game" : "title");
   const [physicsDebug] = useAtom(PhysicsDebugAtom);
+  const aaMode = useGameSettings((state) => state.aaMode);
+  const dprCap = useGameSettings((state) => state.dprCap);
+  const adaptiveDpr = useGameSettings((state) => state.adaptiveDpr);
+  const starsMode = useGameSettings((state) => state.starsMode);
+  const masterVolume = useGameSettings((state) => state.masterVolume);
+  const sfxVolume = useGameSettings((state) => state.sfxVolume);
+  const useRendererAA = aaMode === "renderer" || aaMode === "multisample4" || aaMode === "multisample8";
+  const multisampling = aaMode === "multisample4" ? 4 : aaMode === "multisample8" ? 8 : 0;
+  // Netcode debug overlay: on by default in /test, toggle anywhere with backtick (`).
+  const [showNetDebug, setShowNetDebug] = useState(isTestMode);
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "`" || e.code === "Backquote") {
+        e.preventDefault();
+        setShowNetDebug((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
+    applyAudioSettings({ masterVolume, sfxVolume });
+  }, [masterVolume, sfxVolume]);
 
   if (isShaderPreview) {
     return <ShaderPreview />;
@@ -23,13 +50,13 @@ function App() {
   return (
     <>
       <UI />
-      {isTestMode && <NetDebugOverlay />}
+      {showNetDebug && <NetDebugOverlay />}
       <div className="fixed inset-0">
         <Canvas
           shadows={{ type: THREE.PCFShadowMap }}
-          dpr={[1, 2]}
+          dpr={[1, dprCap]}
           gl={{
-            antialias: true,
+            antialias: useRendererAA,
             toneMapping: THREE.ACESFilmicToneMapping,
             toneMappingExposure: 0.65,
           }}
@@ -41,14 +68,22 @@ function App() {
           <color attach="background" args={["#02040a"]} />
           <PerformanceMonitor>
             <AdaptiveEvents />
-            <AdaptiveDpr />
+            {adaptiveDpr ? <AdaptiveDpr /> : null}
             <Preload all />
-            <EffectComposer multisampling={4} />
+            {aaMode === "multisample4" || aaMode === "multisample8" ? <EffectComposer multisampling={multisampling} /> : null}
+            {aaMode === "smaa" ? (
+              <Suspense fallback={null}>
+                <EffectComposer multisampling={0}>
+                  <SMAA />
+                </EffectComposer>
+              </Suspense>
+            ) : null}
             <Experience
               level={isTestMode ? "test" : "lunar"}
               physicsDebug={physicsDebug}
               debugMode={isTestMode}
               skyMode="purple"
+              starsMode={starsMode}
             />
           </PerformanceMonitor>
         </Canvas>

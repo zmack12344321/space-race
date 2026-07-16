@@ -3,7 +3,7 @@ import { CuboidCollider, CylinderCollider, useBeforePhysicsStep, useRapier } fro
 import { EcctrlCameraControls } from "ecctrl/camera";
 import { useButtonStore, useJoystickStore } from "ecctrl/input";
 import { EcctrlVehicle, ShapeCastWheel, ThrustPropeller } from "ecctrl/vehicle";
-import { myPlayer, usePlayerState, send, setDamageHandler, getLatestTransform, setTransform, getPeerDebug, setRenderLag } from "../../multiplayer/party";
+import { myPlayer, usePlayerState, send, setDamageHandler, getLatestTransform, getInterpolatedTransform, getInterpDelayMs, setTransform, getPeerDebug, setRenderLag } from "../../multiplayer/party";
 import {
   fireBeam,
   BEAM_LENGTH,
@@ -229,13 +229,9 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
   const lastRespawnAt = useRef(0);
   const spawnPoint = useRef(null);
   const lastJumpAt = useRef(0);
-  // Smoothed remote position we drive the kinematic body toward.
+  // Smoothed remote position we drive the kinematic body toward (used for
+  // first-sample snap; steady-state smoothing comes from the snapshot buffer).
   const remoteLerp = useRef({ x: 0, y: 0, z: 0, init: false });
-  // Time constant for remote position smoothing (seconds). Lower = snappier
-  // tracking; higher = smoother but laggier. The respawn test proved the
-  // pipeline is instant, so the "delay" on continuous movement was this TAU.
-  // 0.03 ≈ 30ms trailing — feels live while still hiding packet jitter.
-  const REMOTE_LERP_TAU = 0.03;
   const lastDebugAt = useRef(0);
   const jumpRequested = useRef(false);
   const ecctrlJoystick = useRef({ active: false, x: 0, y: 0 });
@@ -710,15 +706,23 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
           }
 
           // D-pad up/down zooms the camera in/out (clamped by min/maxDistance).
-          // Applied without transition so each frame's step takes effect
-          // immediately (the smoothTime-based transition would otherwise eat
-          // the small per-frame deltas, the way the mouse-wheel jumps do not).
-          // Raw D-pad only — left-stick up/down must not zoom on either vehicle.
+          // We set the `distance` property directly (which writes both the
+          // current and target radius) so the every-frame moveTo above can't
+          // clobber the zoom between frames — this is what makes D-pad zoom
+          // actually stick, unlike dolly()/dollyTo() which only move the target.
           const zoomIn = pad.dpadUp;
           const zoomOut = pad.dpadDown;
           const zoomSpeed = 18;
-          if (zoomIn) cameraControls.current.dolly(zoomSpeed * delta, false);
-          if (zoomOut) cameraControls.current.dolly(-zoomSpeed * delta, false);
+          if (zoomIn || zoomOut) {
+            const cur = cameraControls.current.distance;
+            if (typeof cur === "number" && Number.isFinite(cur)) {
+              const step = (zoomIn ? -1 : 1) * zoomSpeed * delta;
+              cameraControls.current.distance = Math.max(
+                cameraControls.current.minDistance,
+                Math.min(cameraControls.current.maxDistance, cur + step)
+              );
+            }
+          }
 
           if (!mouseButtonsConfigured.current && cameraControls.current) {
             cameraControls.current.mouseButtons.left = -1;
@@ -885,38 +889,38 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
         }
       }
       } else if (!isLocal) {
-        // Remote players: lerp the kinematic body toward the LATEST network
-        // position/rotation every frame (standard R3F multiplayer approach).
-        // No fixed delay, no snapshot buffer — that older approach rendered
-        // remote avatars in the past, causing freeze-then-teleport. This tracks
-        // tightly on localhost and gracefully chases under real latency.
-        const snap = getLatestTransform(state.id);
+        // Remote players: snapshot interpolation. We render the avatar at
+        // (now - getInterpDelayMs()) by sampling a buffer of received transforms
+        // and interpolating between the two snapshots that bracket that time.
+        // Deliberately drawing slightly in the past guarantees we always have a
+        // "future" sample to interpolate toward, so motion is smooth under
+        // variable/lossy latency (the standard Valve/Gambetta approach) instead
+        // of lagging toward the single latest packet.
+        const renderTime = performance.now() - getInterpDelayMs();
+        const snap = getInterpolatedTransform(state.id, renderTime);
         if (snap && snap.pos && Number.isFinite(snap.pos.x)) {
           const lerpPos = remoteLerp.current;
+          // On the very first sample (or after a gap), snap directly to avoid a
+          // long slide from origin. The buffer handles steady-state smoothing.
           if (!lerpPos.init) {
             lerpPos.x = snap.pos.x; lerpPos.y = snap.pos.y; lerpPos.z = snap.pos.z;
             lerpPos.init = true;
           }
-          // Frame-rate independent smoothing toward the newest network sample.
-          const a = 1 - Math.exp(-delta / REMOTE_LERP_TAU);
-          lerpPos.x += (snap.pos.x - lerpPos.x) * a;
-          lerpPos.y += (snap.pos.y - lerpPos.y) * a;
-          lerpPos.z += (snap.pos.z - lerpPos.z) * a;
-          // Debug: estimate how far behind "now" this avatar is drawn.
-          // distance not-yet-covered / network speed ≈ time behind.
-          if (isLocal) {
-            const dx = snap.pos.x - lerpPos.x;
-            const dy = snap.pos.y - lerpPos.y;
-            const dz = snap.pos.z - lerpPos.z;
+          // Debug: how far the rendered pose trails the newest known sample,
+          // plus the configured interpolation delay. Pure measurement.
+          const latest = getLatestTransform(state.id);
+          if (latest && isLocal) {
+            const dx = latest.pos.x - snap.pos.x;
+            const dy = latest.pos.y - snap.pos.y;
+            const dz = latest.pos.z - snap.pos.z;
             const gap = Math.sqrt(dx * dx + dy * dy + dz * dz);
-            const v = snap.vel ? Math.hypot(snap.vel.x, snap.vel.y, snap.vel.z) : 0;
             const peer = getPeerDebug(state.id);
-            const lag = peer ? (v > 0.01 ? (gap / v) * 1000 : 0) + peer.ageMs : gap > 0.01 ? 999 : 0;
+            const lag = getInterpDelayMs() + (peer ? peer.ageMs : 0) * 0 + gap; // ms delay + residual snap gap
             setRenderLag(lag);
           }
           // Rapier traps (wasm "unreachable") on non-finite transforms. Guard.
-          if (Number.isFinite(lerpPos.x) && Number.isFinite(lerpPos.y) && Number.isFinite(lerpPos.z)) {
-            handle.body.setNextKinematicTranslation({ x: lerpPos.x, y: lerpPos.y, z: lerpPos.z });
+          if (Number.isFinite(snap.pos.x) && Number.isFinite(snap.pos.y) && Number.isFinite(snap.pos.z)) {
+            handle.body.setNextKinematicTranslation({ x: snap.pos.x, y: snap.pos.y, z: snap.pos.z });
             if (snap.rot && Number.isFinite(snap.rot.x) && Number.isFinite(snap.rot.w)) {
               handle.body.setNextKinematicRotation({ x: snap.rot.x, y: snap.rot.y, z: snap.rot.z, w: snap.rot.w });
             }
@@ -986,4 +990,5 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
       )}
     </group>
   );
-};
+
+}

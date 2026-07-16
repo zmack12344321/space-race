@@ -19,11 +19,121 @@ const DEFAULT_VEHICLE = "longboard";
 // position" model (the standard R3F multiplayer approach, e.g. Wawa Sensei /
 // balazsfarago examples): each frame the remote kinematic body is driven toward
 // the most recent position/rotation we received, smoothed by a per-frame lerp.
-// No fixed interpolation delay and no snapshot buffer — that older approach
-// rendered remote players in the PAST, which caused them to freeze until a
-// packet arrived and then teleport. Lerp-to-latest tracks tightly on localhost
-// and gracefully chases (never freezes) under real network latency.
+// Snapshot interpolation buffer. Each remote player keeps a short ring of
+// received transforms stamped with BOTH the sender time (t, for RTT) and the
+// local receive time (recvAt). On render we sample the buffer at
+// (now - INTERP_DELAY_MS): i.e. we deliberately render slightly in the past so
+// we always have two snapshots to interpolate between. This is the standard
+// technique ( Valve "Shadow Buffer", Gabriel Gambetta ) and gives smooth,
+// jitter-free remote motion under real (variable, lossy) network latency —
+// unlike lerp-to-latest, which visibly lags and reacts late to every packet.
+//
+// INTERP_DELAY_MS is ADAPTIVE but tuned for a CLIENT-AUTHORITATIVE relay (not
+// server-simulated). In this model the remote client has ALREADY simulated and
+// sent its transform — we only need to bridge the gap between two of its
+// packets, so the delay should track the (RTT + one send interval), NOT be a
+// large multiple of RTT (that would just add needless latency on good links).
+// On localhost (RTT ~0-5ms) it settles at the floor (~30ms ≈ 2 snapshots at
+// 15ms send rate): tight and instant, while still smoothing packet jitter. On a
+// 120ms link it grows to ~150ms so motion stays smooth instead of stuttering.
+const INTERP_DELAY_FLOOR_MS = 30; // never render closer than this to "now"
+const INTERP_DELAY_MAX_MS = 250; // cap so bad links don't feel frozen
+let interpDelayMs = INTERP_DELAY_FLOOR_MS;
+
+// Recompute the interpolation delay from the latest smoothed RTT. We render
+// (RTT + floor) in the past: enough that a newer snapshot always exists to
+// interpolate toward, scaled gently with latency. Called on each RTT sample.
+function updateInterpDelay() {
+  const target = INTERP_DELAY_FLOOR_MS + netDebug.rttMs;
+  const clamped = Math.max(INTERP_DELAY_FLOOR_MS, Math.min(INTERP_DELAY_MAX_MS, target));
+  // Smooth the delay itself so it doesn't jump when RTT spikes briefly.
+  interpDelayMs = interpDelayMs * 0.9 + clamped * 0.1;
+}
+
+export function getInterpDelayMs() {
+  return interpDelayMs;
+}
+// Kept for any direct references / overlay title; resolves live value.
+export const INTERP_DELAY_MS = getInterpDelayMs();
+
+const transformBuffers = new Map(); // id -> [{ t, recvAt, pos, rot, vel }]
+
+function pushTransformSnapshot(id, snap) {
+  let buf = transformBuffers.get(id);
+  if (!buf) {
+    buf = [];
+    transformBuffers.set(id, buf);
+  }
+  buf.push(snap);
+  // Keep ~1s of history (enough to cover INTERP_DELAY + jitter).
+  const cutoff = performance.now() - 1000;
+  while (buf.length > 2 && buf[0].recvAt < cutoff) buf.shift();
+}
+
+// Sample the buffer at renderTime (ms, local clock). Returns interpolated
+// { pos, rot, vel } or null if no usable snapshots.
+export function getInterpolatedTransform(id, renderTime) {
+  const buf = transformBuffers.get(id);
+  if (!buf || buf.length === 0) {
+    const player = players.get(id);
+    if (!player) return null;
+    return { pos: player.state.pos, rot: player.state.rot, vel: player.state.vel };
+  }
+  if (buf.length === 1) {
+    const s = buf[0];
+    return { pos: s.pos, rot: s.rot, vel: s.vel };
+  }
+  // Find the two snapshots bracketing renderTime.
+  let older = buf[0];
+  let newer = buf[buf.length - 1];
+  for (let i = 0; i < buf.length - 1; i++) {
+    if (buf[i].recvAt <= renderTime && buf[i + 1].recvAt >= renderTime) {
+      older = buf[i];
+      newer = buf[i + 1];
+      break;
+    }
+  }
+  // Clamp to buffer edges if renderTime is outside [oldest, newest].
+  if (renderTime <= buf[0].recvAt) {
+    return { pos: buf[0].pos, rot: buf[0].rot, vel: buf[0].vel };
+  }
+  if (renderTime >= buf[buf.length - 1].recvAt) {
+    const s = buf[buf.length - 1];
+    return { pos: s.pos, rot: s.rot, vel: s.vel };
+  }
+  const span = newer.recvAt - older.recvAt;
+  const a = span > 0 ? (renderTime - older.recvAt) / span : 0;
+  const lerp = (p, q) => ({
+    x: p.x + (q.x - p.x) * a,
+    y: p.y + (q.y - p.y) * a,
+    z: p.z + (q.z - p.z) * a,
+  });
+  const slerp = (p, q) => {
+    // nlerp is fine for small per-snapshot rotation deltas.
+    const r = {
+      x: p.x + (q.x - p.x) * a,
+      y: p.y + (q.y - p.y) * a,
+      z: p.z + (q.z - p.z) * a,
+      w: p.w + (q.w - p.w) * a,
+    };
+    const len = Math.hypot(r.x, r.y, r.z, r.w) || 1;
+    return { x: r.x / len, y: r.y / len, z: r.z / len, w: r.w / len };
+  };
+  return {
+    pos: lerp(older.pos, newer.pos),
+    rot: slerp(older.rot, newer.rot),
+    vel: lerp(older.vel, newer.vel),
+  };
+}
+
+// Backwards-compatible accessor: returns the newest snapshot (used by non-
+// interpolated consumers / tests).
 export function getLatestTransform(id) {
+  const buf = transformBuffers.get(id);
+  if (buf && buf.length) {
+    const s = buf[buf.length - 1];
+    return { pos: s.pos, rot: s.rot, vel: s.vel };
+  }
   const player = players.get(id);
   if (!player) return null;
   return {
@@ -259,8 +369,17 @@ function handleMessage(event) {
           netDebug.rttMs = netDebug.rttMs * 0.9 + rtt * 0.1;
           const st = netDebug._sendTimes.shift();
           void st;
+          updateInterpDelay();
         }
       }
+      // Store snapshot for interpolation buffer (recvAt = local arrival time).
+      pushTransformSnapshot(message.id, {
+        t: typeof t._t === "number" ? t._t : now,
+        recvAt: now,
+        pos: t.pos,
+        rot: t.rot,
+        vel: t.vel,
+      });
       const peer = netDebug.peers[message.id] || { lastRecvAt: 0, _recvs: [] };
       peer.lastRecvAt = now;
       peer._recvs.push(now);

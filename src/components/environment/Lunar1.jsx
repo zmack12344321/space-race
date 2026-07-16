@@ -122,33 +122,33 @@ export function Lobby(props) {
             onEdit={() => setNameEditing(true)}
           />
 
+          {/* Uplight from below + glowing floor ring that lights the rider
+              from underneath — every player gets their own. */}
+          <pointLight
+            position={[-0.03, 0.46, 0.2]}
+            intensity={3}
+            distance={4.5}
+            decay={2}
+            color="#cfe0ff" visible={true}
+          />
+          <mesh
+            name="UplightRing"
+            rotation={[-Math.PI / 2, 0, 0]}
+            position={[0, 0.02, 0]}
+            receiveShadow
+          >
+            <ringGeometry args={[1.65, 2.0, 64]} />
+            <meshStandardMaterial
+              color="#ffffff"
+              emissive="#bcd4ff"
+              emissiveIntensity={0.7}
+              toneMapped={false}
+              side={DoubleSide}
+            />
+          </mesh>
+
           {player.id === me?.id && (
             <group name="Platform">
-              {/* Uplight from below + glowing floor ring that lights the dog
-                  from underneath. */}
-              <pointLight
-                position={[-0.03, 0.46, 0.2]}
-                intensity={3}
-                distance={4.5}
-                decay={2}
-                color="#cfe0ff" visible={true}
-              />
-              <mesh
-                name="UplightRing"
-                rotation={[-Math.PI / 2, 0, 0]}
-                position={[0, 0.02, 0]}
-                receiveShadow
-              >
-                <ringGeometry args={[1.65, 2.0, 64]} />
-                <meshStandardMaterial
-                  color="#ffffff"
-                  emissive="#bcd4ff"
-                  emissiveIntensity={0.7}
-                  toneMapped={false}
-                  side={DoubleSide}
-                />
-              </mesh>
-
               {/* Focused beam blasting up out of the ring — drag to reposition */}
               <group name="PodiumBeam" position={[0, 0.02, 0]}>
                 <spotLight

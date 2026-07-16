@@ -1,4 +1,4 @@
-import { AdaptiveDpr, PerformanceMonitor } from "@react-three/drei";
+import { PerformanceMonitor } from "@react-three/drei";
 import { MeshCollider, RigidBody } from "@react-three/rapier";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState, startTransition } from "react";
@@ -152,7 +152,7 @@ function LunarTerrainChunk({ chunkX, chunkZ, centerX, centerZ, material, quality
   return visualTerrain ? <primitive object={visualTerrain} /> : null;
 }
 
-export function LunarSky({ skyMode = "blue" } = {}) {
+export function LunarSky({ skyMode = "blue", starsMode = "lean" } = {}) {
   const scene = useThree((state) => state.scene);
 
   useEffect(() => {
@@ -166,8 +166,7 @@ export function LunarSky({ skyMode = "blue" } = {}) {
   return (
     <>
       {/* <SpaceBackdrop /> */}
-      <NewMoonSky skyMode={skyMode} />
-      <AdaptiveDpr pixelated />
+      <NewMoonSky skyMode={skyMode} starsMode={starsMode} />
     </>
   );
 }

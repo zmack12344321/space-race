@@ -7,13 +7,49 @@ export const DEFAULT_GAME_SETTINGS = {
   bloom: true,
   particles: true,
   screenShake: true,
+  masterVolume: 0.85,
+  sfxVolume: 0.9,
+  subtitles: true,
+  renderPreset: "balanced", // "performance" | "balanced" | "quality" | "custom"
+  aaMode: "multisample4", // "renderer" | "multisample4" | "multisample8" | "smaa" | "off"
+  dprCap: 1.75,
+  adaptiveDpr: true,
+  starsMode: "lean", // "off" | "lean" | "full"
+};
+
+const RENDER_PRESETS = {
+  performance: {
+    aaMode: "off",
+    dprCap: 1.25,
+    adaptiveDpr: true,
+    starsMode: "off",
+  },
+  balanced: {
+    aaMode: "multisample4",
+    dprCap: 1.75,
+    adaptiveDpr: true,
+    starsMode: "lean",
+  },
+  quality: {
+    aaMode: "multisample8",
+    dprCap: 2,
+    adaptiveDpr: true,
+    starsMode: "full",
+  },
 };
 
 export const useGameSettings = create(
   persist(
-    (set) => ({
+    (set, get) => ({
       ...DEFAULT_GAME_SETTINGS,
       setSetting: (key, value) => set({ [key]: value }),
+      applyRenderPreset: (preset) => {
+        const next = RENDER_PRESETS[preset] ?? RENDER_PRESETS.balanced;
+        set({ ...next, renderPreset: preset in RENDER_PRESETS ? preset : "custom" });
+      },
+      markCustomRender: () => {
+        if (get().renderPreset !== "custom") set({ renderPreset: "custom" });
+      },
       reset: () => set({ ...DEFAULT_GAME_SETTINGS }),
     }),
     {
@@ -24,6 +60,14 @@ export const useGameSettings = create(
         bloom: state.bloom,
         particles: state.particles,
         screenShake: state.screenShake,
+        masterVolume: state.masterVolume,
+        sfxVolume: state.sfxVolume,
+        subtitles: state.subtitles,
+        renderPreset: state.renderPreset,
+        aaMode: state.aaMode,
+        dprCap: state.dprCap,
+        adaptiveDpr: state.adaptiveDpr,
+        starsMode: state.starsMode,
       }),
     }
   )

@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
-import { netDebug, getPeerDebug } from "../../multiplayer/party";
+import { netDebug, getPeerDebug, getInterpDelayMs } from "../../multiplayer/party";
 
-// Lightweight netcode instrumentation overlay for the /test arena. Shows real
-// numbers instead of guessing where the delay lives:
-//   RTT       - send→receive round trip (should be ~0 on localhost)
-//   send Hz   - how often WE broadcast our transform
-//   recv Hz   - how often the OTHER player's updates arrive
-//   age       - ms since we last heard from the other player (network staleness)
-//   renderLag - ms the remote avatar is drawn behind its latest known position
+// Lightweight netcode instrumentation overlay. Toggle anywhere with backtick (`).
+// Shows real numbers instead of guessing where the delay lives:
+//   RTT        - send→receive round trip (should be ~0 on localhost)
+//   send Hz    - how often WE broadcast our transform
+//   recv Hz    - how often the OTHER player's updates arrive
+//   peer age   - ms since we last heard from the other player (network staleness)
+//   interp     - ms we render in the past (snapshot buffer delay)
+//   render lag - ms the remote avatar trails its newest known sample
 export function NetDebugOverlay() {
   const [, force] = useState(0);
   useEffect(() => {
@@ -44,11 +45,12 @@ export function NetDebugOverlay() {
         whiteSpace: "pre",
       }}
     >
-      {`NETCODE DEBUG (localhost)
+      {`NETCODE DEBUG (backtick to hide)
 RTT:        ${netDebug.rttMs.toFixed(1)} ms
 send Hz:     ${sendHz.toFixed(0)}
 recv Hz:     ${peer ? peer.recvHz.toFixed(0) : "-"}
 peer age:   ${peer ? peer.ageMs.toFixed(0) : "-"} ms
+interp:     ${getInterpDelayMs().toFixed(0)} ms
 render lag: ${netDebug.renderLagMs.toFixed(0)} ms`}
     </div>
   );

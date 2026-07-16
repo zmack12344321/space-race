@@ -8,7 +8,7 @@ import {
   Object3D,
   Vector3,
 } from "three";
-import { myPlayer, usePlayersList, send, getLatestTransform } from "../../multiplayer/party";
+import { myPlayer, usePlayersList, send, getLatestTransform, getInterpolatedTransform, getInterpDelayMs } from "../../multiplayer/party";
 import {
   getLaserPool,
   HIT_RADIUS,
@@ -60,10 +60,13 @@ export function LaserSystem({ getGroundHeight }) {
   const beamEnd = useMemo(() => new Vector3(), []);
 
   // Where a remote player is drawn this frame (interpolated), so hit tests line
-  // up with what the shooter actually sees. Falls back to the latest network
-  // pos if interpolation has no data yet.
+  // up with what the shooter actually sees. Uses the same interpolation the
+  // renderer uses, so "what you see is what gets hit". Falls back to the latest
+  // network pos if interpolation has no data yet.
   const getRemoteHitPos = (pl) => {
     if (pl.id === myId) return pl.getState ? pl.getState("pos") : pl.state?.pos;
+    const interp = getInterpolatedTransform(pl.id, performance.now() - getInterpDelayMs());
+    if (interp?.pos) return interp.pos;
     const latest = getLatestTransform(pl.id);
     return latest?.pos || (pl.getState ? pl.getState("pos") : pl.state?.pos);
   };

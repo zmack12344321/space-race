@@ -5,7 +5,7 @@ import { useMultiplayerState } from "../../multiplayer/party";
 import { DistantMountains } from "./DistantMountains";
 import { LunarSky } from "./LunarTerrain";
 
-export function LunarEnvironment({ sunAngle: sunAngleProp, skyMode = "blue" } = {}) {
+export function LunarEnvironment({ sunAngle: sunAngleProp, skyMode = "blue", starsMode = "lean" } = {}) {
   const [roomSunAngle] = useMultiplayerState("sunAngle", 0.94);
   const sunAngle = sunAngleProp ?? roomSunAngle;
   
@@ -78,7 +78,7 @@ export function LunarEnvironment({ sunAngle: sunAngleProp, skyMode = "blue" } = 
       <group ref={mountainsRef}>
         <DistantMountains />
       </group>
-      <LunarSky skyMode={skyMode} />
+      <LunarSky skyMode={skyMode} starsMode={starsMode} />
     </>
   );
 }

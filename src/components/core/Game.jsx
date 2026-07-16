@@ -53,7 +53,7 @@ function TestArena() {
   );
 }
 
-export const Game = ({ level = "lunar", physicsDebug = false, debugMode = false, skyMode = "blue" }) => {
+export const Game = ({ level = "lunar", physicsDebug = false, debugMode = false, skyMode = "blue", starsMode = "lean" }) => {
   const [players, setPlayers] = useState([]);
   const paused = useAtomValue(GameMenuOpenAtom);
   const [sunAngle] = useMultiplayerState("sunAngle", 0.3);
@@ -96,7 +96,7 @@ export const Game = ({ level = "lunar", physicsDebug = false, debugMode = false,
   return (
     <group>
       {level === "lunar" ? (
-        <LunarEnvironment skyMode={skyMode} />
+        <LunarEnvironment skyMode={skyMode} starsMode={starsMode} />
       ) : (
         <>
           <ambientLight intensity={fillIntensity} color="#7f8bad" />

@@ -1,13 +1,13 @@
 const LOBBY_SLOT_POSITIONS = [
   [0, 0, 0],
-  [2.9, 0, 0],
-  [-2.9, 0, 0],
-  [5.8, 0, 0],
-  [-5.8, 0, 0],
-  [2.2, 0, 1.85],
-  [-2.2, 0, 1.85],
-  [7.2, 0, 0],
-  [-7.2, 0, 0],
+  [4.6, 0, 0],
+  [-4.6, 0, 0],
+  [9.2, 0, 0],
+  [-9.2, 0, 0],
+  [3.5, 0, 3.0],
+  [-3.5, 0, 3.0],
+  [11.5, 0, 0],
+  [-11.5, 0, 0],
 ];
 
 export function getLobbySlotPosition(index) {
@@ -17,7 +17,7 @@ export function getLobbySlotPosition(index) {
 
   const ring = Math.floor((index - LOBBY_SLOT_POSITIONS.length) / 2) + 2;
   const side = index % 2 === 0 ? 1 : -1;
-  return [side * ring * 2.4, 0, Math.min(2.8, ring * 0.95)];
+  return [side * ring * 4.0, 0, Math.min(4.5, ring * 1.5)];
 }
 
 export function sortLobbyPlayers(players, meId) {

@@ -85,6 +85,26 @@ function makeButtons(pad) {
     dpadRight: Boolean(buttons[15]?.pressed),
   };
 
+  // Fallback: some controllers (DirectInput / non-Standard-mapped) expose the
+  // D-pad as a hat-switch AXIS instead of buttons 12-15, so the reads above are
+  // all false. Detect a hat (two adjacent axes holding integer-like ±1 values)
+  // and map it to the D-pad directions.
+  if (!raw.dpadUp && !raw.dpadDown && !raw.dpadLeft && !raw.dpadRight) {
+    const ax = pad.axes ?? [];
+    for (let i = 0; i + 1 < ax.length; i += 1) {
+      const y = ax[i];
+      const x = ax[i + 1];
+      if (y == null || x == null) continue;
+      if (Math.abs(y) > 0.5 && Math.abs(x) > 0.5 && Math.round(y) === y && Math.round(x) === x) {
+        if (y < 0) raw.dpadUp = true;
+        else raw.dpadDown = true;
+        if (x < 0) raw.dpadLeft = true;
+        else raw.dpadRight = true;
+        break;
+      }
+    }
+  }
+
   const axes = {
     lx: deadzone(Number(pad.axes?.[0] ?? 0), AXIS_DEADZONE),
     ly: deadzone(Number(pad.axes?.[1] ?? 0), AXIS_DEADZONE),

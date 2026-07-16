@@ -22,6 +22,7 @@ import { useGamepadRef } from "./gamepadStore";
 import { TITLE_QUIPS, LOADING_QUIPS, PLAY_QUIPS, NAME_QUIPS, RESPAWN_QUIPS, START_QUIPS, makeQuipPicker } from "../../utils/quips";
 import { BoostMeter } from "./BoostMeter";
 import { HeatMeter } from "./HeatMeter";
+import { HealthBar } from "./HealthBar";
 
 export const NameEditingAtom = atom(false);
 export const GameMenuOpenAtom = atom(false);
@@ -613,6 +614,7 @@ export const UI = () => {
         </div>
       )}
       {me && <BoardSelector me={me} menuOpen={menuOpen} />}
+      {gameState === "game" && !menuOpen && <HealthBar />}
       {gameState === "game" && !menuOpen && <BoostMeter />}
       {gameState === "game" && !menuOpen && <HeatMeter />}
       {gameState === "game" && isTouchDevice && <EcctrlTouchControls />}
