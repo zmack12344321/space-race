@@ -2,14 +2,8 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export const DEFAULT_GAME_SETTINGS = {
-  quality: "high", // "low" | "medium" | "high"
-  shadows: true,
-  bloom: true,
-  particles: true,
-  screenShake: true,
   masterVolume: 0.85,
   sfxVolume: 0.9,
-  subtitles: true,
   renderPreset: "balanced", // "performance" | "balanced" | "quality" | "custom"
   aaMode: "multisample4", // "renderer" | "multisample4" | "multisample8" | "smaa" | "off"
   dprCap: 1.75,
@@ -19,18 +13,21 @@ export const DEFAULT_GAME_SETTINGS = {
 
 const RENDER_PRESETS = {
   performance: {
+    renderPreset: "performance",
     aaMode: "off",
     dprCap: 1.25,
     adaptiveDpr: true,
     starsMode: "off",
   },
   balanced: {
+    renderPreset: "balanced",
     aaMode: "multisample4",
     dprCap: 1.75,
     adaptiveDpr: true,
     starsMode: "lean",
   },
   quality: {
+    renderPreset: "quality",
     aaMode: "multisample8",
     dprCap: 2,
     adaptiveDpr: true,
@@ -55,14 +52,8 @@ export const useGameSettings = create(
     {
       name: "space-race-game-settings",
       partialize: (state) => ({
-        quality: state.quality,
-        shadows: state.shadows,
-        bloom: state.bloom,
-        particles: state.particles,
-        screenShake: state.screenShake,
         masterVolume: state.masterVolume,
         sfxVolume: state.sfxVolume,
-        subtitles: state.subtitles,
         renderPreset: state.renderPreset,
         aaMode: state.aaMode,
         dprCap: state.dprCap,

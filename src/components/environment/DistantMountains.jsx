@@ -45,7 +45,11 @@ export function MountainRange({
       // Occasional sharper peaks + asymmetry from seeded noise.
       const detail = (random() - 0.5) * 0.3;
 
-      const ridgeY = height * (0.55 + broad + detail);
+      // Second higher-frequency octave so closer (more segmented) ridges
+      // read as craggy rather than smooth sine lumps.
+      const craggy = Math.sin(t * Math.PI * 19 + seed * 1.7) * 0.06 * (segments / 36);
+
+      const ridgeY = height * (0.55 + broad + detail + craggy);
 
       // Ridge vertex + hidden lower vertex (buried below the terrain).
       positions.push(x, ridgeY, 0);
@@ -121,55 +125,57 @@ export function DistantMountains({
 } = {}) {
   const bands = useMemo(
     () => [
-      // Far — lightest, bluest, lowest contrast, haziest, shorter so it
-      // reads as distance, not a wall. Melts into horizon fog.
+      // Far — closest to fog color so it dissolves into the horizon
+      // instead of reading as a hard wall. Short + low contrast, but tall
+      // enough to poke above the fog line when the camera rises.
       {
-        radius: radius + 200,
-        height: height * 1.1,
+        radius: radius + 360,
+        height: height * 1.3,
         segments: Math.round(segments * 0.55),
-        strips: 10,
+        strips: 12,
         seed: seed + 13,
-        color: "#22324f",
-        y: 8,
+        color: "#161f33",
+        y: 10,
         depth: 0,
       },
       // Far-mid.
       {
-        radius: radius + 110,
+        radius: radius + 270,
         height: height * 1.08,
         segments: Math.round(segments * 0.7),
-        strips: 9,
+        strips: 11,
         seed: seed + 11,
-        color: "#1a2740",
+        color: "#131c2e",
         y: 5,
         depth: depth * 0.35,
       },
       // Mid.
       {
-        radius: radius + 25,
+        radius: radius + 185,
         height: height * 1.04,
         segments: Math.round(segments * 0.85),
-        strips: 8,
+        strips: 10,
         seed: seed + 8,
-        color: "#142033",
+        color: "#101829",
         y: 2,
         depth: depth * 0.6,
       },
-      // Near-mid — bridges the big gap to the foreground.
+      // Near-mid — bridges the gap to the foreground.
       {
-        radius: radius - 90,
+        radius: radius + 100,
         height: height * 1.1,
         segments: Math.round(segments * 1.05),
-        strips: 8,
+        strips: 9,
         seed: seed + 5,
-        color: "#101a2c",
+        color: "#0d1525",
         y: -1,
         depth: depth * 0.85,
       },
-      // Foreground — closest, fills gap between gameplay and far wall.
+      // Foreground — closest, but pushed well beyond the rock/terrain
+      // stream radius (~576u) so rocks never sit in front of the ridges.
       // Darkest + tallest + most defined; base melts into fog like terrain.
       {
-        radius: radius - 210,
+        radius: radius + 30,
         height: height * 1.25,
         segments: Math.round(segments * 1.35),
         strips: 12,

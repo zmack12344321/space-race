@@ -209,8 +209,8 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
   const boostEnergy = useRef(1);
   const boostLocked = useRef(false);
   const boostMultiplier = boostActive ? tuning.common.boostMultiplier ?? 1.45 : 1;
-  const BOOST_SPEED_MULT = 1.4;
-  const BOOST_VERT_MULT = 1.4;
+  const BOOST_SPEED_MULT = tuning.drone.boostSpeedMult ?? 1.4;
+  const BOOST_VERT_MULT = tuning.drone.boostSpeedMult ?? 1.4;
   const menuOpen = useAtomValue(GameMenuOpenAtom);
   const gamepadRef = useGamepadRef();
   const keys = useRef({

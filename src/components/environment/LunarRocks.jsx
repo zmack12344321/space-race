@@ -11,7 +11,8 @@ import { Rock, ROCK_BASE_SCALE } from "./rocks/Rock";
 // Mirror LunarTerrain's chunk constants so rocks tile seamlessly with the
 // ground underneath them.
 const CHUNK_SIZE = 64;
-const VISUAL_RADIUS = 6; // Keep startup lighter; extend later if needed
+const VISUAL_RADIUS = 9; // Match LunarTerrain's DEFAULT_VISUAL_RADIUS so
+                         // rocks and floor stream to the same distance.
 const PHYSICS_RADIUS = 1; // chunks within this ring get real colliders
 const ROCKS_PER_CHUNK = 4; // deterministic rocks scattered per chunk
 // Capacity per rock type: worst case every rock in view is one type.

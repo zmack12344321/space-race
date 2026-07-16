@@ -10,7 +10,7 @@ import { useLunarMaterial } from "./useLunarMaterial";
 import TerrainWorker from "../../workers/terrain.worker.js?worker";
 
 const CHUNK_SIZE = 64;
-const DEFAULT_VISUAL_RADIUS = 6;
+const DEFAULT_VISUAL_RADIUS = 9;
 const PHYSICS_RADIUS = 3;
 
 const workers = [];
@@ -157,7 +157,7 @@ export function LunarSky({ skyMode = "blue", starsMode = "lean" } = {}) {
 
   useEffect(() => {
     const prevFog = scene.fog;
-    scene.fog = new THREE.FogExp2(0x0a0e1a, 0.003);
+    scene.fog = new THREE.FogExp2(0x0a0e1a, 0.0009);
     return () => {
       scene.fog = prevFog;
     };

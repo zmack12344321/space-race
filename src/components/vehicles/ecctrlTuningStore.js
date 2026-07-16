@@ -91,6 +91,9 @@ export const ECCTRL_TUNING_PRESETS = {
       maxYawRate: 2,
       maxHorizSpeed: 20,
       maxVertSpeed: 8,
+      boostSpeedMult: 1.4,
+      throttleUpSpeed: 8,
+
       maxTiltAngle: Math.PI / 4,
       airDragFactor: 0.2,
       TILT_P: 15,
@@ -194,6 +197,9 @@ export const ECCTRL_TUNING_PRESETS = {
       maxYawRate: 2,
       maxHorizSpeed: 20,
       maxVertSpeed: 8,
+      boostSpeedMult: 1.4,
+      throttleUpSpeed: 8,
+
       maxTiltAngle: Math.PI / 4,
       airDragFactor: 0.2,
       TILT_P: 15,
@@ -297,6 +303,9 @@ export const ECCTRL_TUNING_PRESETS = {
       maxYawRate: 2,
       maxHorizSpeed: 20,
       maxVertSpeed: 8,
+      boostSpeedMult: 1.4,
+      throttleUpSpeed: 8,
+
       maxTiltAngle: Math.PI / 4,
       airDragFactor: 0.2,
       TILT_P: 15,

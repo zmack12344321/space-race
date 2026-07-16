@@ -1,15 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGamepadRef } from "./gamepadStore";
 import { useGameSettings, DEFAULT_GAME_SETTINGS } from "./gameSettingsStore";
 
 const STICK_NAV = 0.55;
 const NAV_REPEAT = 220;
-
-const QUALITY_OPTONS = [
-  { key: "low", label: "Low" },
-  { key: "medium", label: "Medium" },
-  { key: "high", label: "High" },
-];
 
 const AA_OPTIONS = [
   { key: "renderer", label: "Renderer" },
@@ -52,6 +46,45 @@ function SettingToggle({ label, value, onChange }) {
   );
 }
 
+function SettingSlider({ label, value, min, max, step, onChange, suffix = "" }) {
+  return (
+    <label className="control-row flex flex-col gap-2 rounded-[1.25rem] border border-white/[0.08] bg-black/20 px-5 py-4">
+      <div className="flex items-center justify-between gap-3 text-[18px] font-black uppercase tracking-[0.14em] text-white">
+        <span>{label}</span>
+        <span className="font-mono text-[13px] text-white/75">{Number(value).toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}{suffix}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="game-slider w-full cursor-pointer"
+      />
+    </label>
+  );
+}
+
+function SettingSelect({ label, value, options, onChange }) {
+  return (
+    <label className="control-row flex flex-col gap-2 rounded-[1.25rem] border border-white/[0.08] bg-black/20 px-5 py-4">
+      <div className="text-[18px] font-black uppercase tracking-[0.14em] text-white">{label}</div>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="ui-button rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-[15px] font-black uppercase tracking-[0.12em] text-white outline-none transition hover:bg-white/10"
+      >
+        {options.map((opt) => (
+          <option key={opt.key} value={opt.key}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export function GameSettings({ onBack }) {
   const panelRef = useRef(null);
   const gamepadRef = useGamepadRef();
@@ -60,9 +93,10 @@ export function GameSettings({ onBack }) {
   const applyRenderPreset = useGameSettings((s) => s.applyRenderPreset);
   const markCustomRender = useGameSettings((s) => s.markCustomRender);
   const reset = useGameSettings((s) => s.reset);
+  const [isFullscreen, setIsFullscreen] = useState(Boolean(document.fullscreenElement));
 
   const focusables = () =>
-    Array.from(panelRef.current?.querySelectorAll('button, input[type="range"]') ?? []);
+    Array.from(panelRef.current?.querySelectorAll('button, input[type="range"], select') ?? []);
 
   const focusAndReveal = (element) => {
     element?.focus();
@@ -115,7 +149,7 @@ export function GameSettings({ onBack }) {
     nav.current = readNav(gamepadRef.current);
 
     requestAnimationFrame(() => {
-      const first = panelRef.current?.querySelector('button, input[type="range"]');
+      const first = panelRef.current?.querySelector('button, input[type="range"], select');
       first?.focus();
     });
 
@@ -139,6 +173,8 @@ export function GameSettings({ onBack }) {
     };
 
     window.addEventListener("keydown", onKeyDown);
+    const onFullscreenChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onFullscreenChange);
 
     let raf = 0;
     const tick = () => {
@@ -178,9 +214,19 @@ export function GameSettings({ onBack }) {
 
     return () => {
       window.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
       cancelAnimationFrame(raf);
     };
   }, [onBack]);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch {
+      // Ignore fullscreen failures.
+    }
+  };
 
   return (
     <div ref={panelRef} className="controls-font flex max-h-[min(86vh,52rem)] flex-col">
@@ -199,7 +245,7 @@ export function GameSettings({ onBack }) {
 
       <div className="mt-5 grid flex-1 gap-4 overflow-hidden lg:grid-cols-2">
         <div className="flex flex-col overflow-y-auto rounded-[1.5rem] border border-cyan-300/30 bg-white/[0.04] p-5 game-menu-scroll">
-          <div className="mb-4 text-[18px] font-bold uppercase tracking-[0.22em] text-cyan-300/90">Quality</div>
+          <div className="mb-4 text-[18px] font-bold uppercase tracking-[0.22em] text-cyan-300/90">Render</div>
           <div className="space-y-2.5">
             <div className="control-row rounded-[1.25rem] border border-white/[0.08] bg-black/20 px-5 py-4">
               <div className="mb-3 text-[18px] font-black uppercase tracking-[0.14em] text-white">Render Preset</div>
@@ -221,48 +267,15 @@ export function GameSettings({ onBack }) {
               </div>
               <p className="mt-3 text-[12px] uppercase tracking-[0.12em] text-white/45">Manual changes below switch this to custom.</p>
             </div>
-            <div className="control-row rounded-[1.25rem] border border-white/[0.08] bg-black/20 px-5 py-4">
-              <div className="mb-3 text-[18px] font-black uppercase tracking-[0.14em] text-white">Graphics</div>
-              <div className="grid grid-cols-3 gap-2">
-                {QUALITY_OPTONS.map((opt) => (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    onClick={() => { markCustomRender(); setSetting("quality", opt.key); }}
-                    className={`ui-button rounded-2xl border px-4 py-4 text-[16px] font-black uppercase tracking-[0.12em] transition focus-visible:outline-none ${
-                      settings.quality === opt.key
-                        ? "border-cyan-300/50 bg-cyan-300/18 text-cyan-200"
-                        : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <SettingToggle label="Shadows" value={settings.shadows} onChange={(v) => { markCustomRender(); setSetting("shadows", v); }} />
-            <SettingToggle label="Bloom" value={settings.bloom} onChange={(v) => { markCustomRender(); setSetting("bloom", v); }} />
-            <SettingToggle label="Particles" value={settings.particles} onChange={(v) => { markCustomRender(); setSetting("particles", v); }} />
-            <SettingToggle label="Screen Shake" value={settings.screenShake} onChange={(v) => { markCustomRender(); setSetting("screenShake", v); }} />
-            <div className="control-row rounded-[1.25rem] border border-white/[0.08] bg-black/20 px-5 py-4">
-              <div className="mb-3 text-[18px] font-black uppercase tracking-[0.14em] text-white">Anti-Aliasing</div>
-              <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
-                {AA_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    onClick={() => { markCustomRender(); setSetting("aaMode", opt.key); }}
-                    className={`ui-button rounded-2xl border px-4 py-4 text-[15px] font-black uppercase tracking-[0.12em] transition focus-visible:outline-none ${
-                      settings.aaMode === opt.key
-                        ? "border-cyan-300/50 bg-cyan-300/18 text-cyan-200"
-                        : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <SettingSelect
+              label="Anti-Aliasing"
+              value={settings.aaMode}
+              options={AA_OPTIONS}
+              onChange={(value) => {
+                markCustomRender();
+                setSetting("aaMode", value);
+              }}
+            />
             <div className="control-row rounded-[1.25rem] border border-white/[0.08] bg-black/20 px-5 py-4">
               <div className="mb-3 text-[18px] font-black uppercase tracking-[0.14em] text-white">DPR Cap</div>
               <div className="grid grid-cols-4 gap-2">
@@ -302,6 +315,24 @@ export function GameSettings({ onBack }) {
                 ))}
               </div>
             </div>
+            <div className="mt-2 text-[12px] uppercase tracking-[0.16em] text-white/40">
+              Current preset: <span className="text-white/85">{settings.renderPreset}</span>
+            </div>
+            <div className="pt-2 text-[18px] font-bold uppercase tracking-[0.22em] text-white/55">Audio</div>
+            <SettingSlider label="Master Volume" value={settings.masterVolume} min={0} max={1} step={0.01} onChange={(v) => setSetting("masterVolume", v)} />
+            <SettingSlider label="SFX Volume" value={settings.sfxVolume} min={0} max={1} step={0.01} onChange={(v) => setSetting("sfxVolume", v)} />
+            <div className="control-row flex items-center justify-between gap-3 rounded-[1.25rem] border border-white/[0.08] bg-black/20 px-5 py-4">
+              <span className="text-[18px] font-black uppercase tracking-[0.14em] text-white">Fullscreen</span>
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                className={`ui-button rounded-full border px-5 py-3 text-[15px] font-black uppercase tracking-[0.12em] transition focus-visible:outline-none ${
+                  isFullscreen ? "border-cyan-300/50 bg-cyan-300/18 text-cyan-200" : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+                }`}
+              >
+                {isFullscreen ? "Exit" : "Enter"}
+              </button>
+            </div>
             <div className="pt-1">
               <button
                 type="button"
@@ -326,7 +357,7 @@ export function GameSettings({ onBack }) {
               <span className="font-black uppercase tracking-[0.12em] text-cyan-200">Quick Tuning</span> button during a match — that's separate from
               these.
             </p>
-            <p className="text-white/55">Graphics quality: <span className="font-black uppercase tracking-[0.12em] text-white">{settings.quality}</span></p>
+            <p className="text-white/55">Use the render preset for the main perf/quality tradeoff. Manual changes flip to custom.</p>
           </div>
         </div>
       </div>

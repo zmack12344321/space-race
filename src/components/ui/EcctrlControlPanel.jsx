@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ECCTRL_VEHICLE_TUNING_PRESETS, getEcctrlTuningPreset, useEcctrlTuningStore } from "../vehicles/ecctrlTuningStore";
+import { getEcctrlTuningPreset, useEcctrlTuningStore } from "../vehicles/ecctrlTuningStore";
 import { useMultiplayerState } from "../../multiplayer/party";
 import { useGamepadRef } from "./gamepadStore";
 
@@ -286,11 +286,8 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
 
           {tab === "core" && (
             <Section title="Game Feel" eyebrow="Core">
-              <Slider label="Overall Speed" value={tuning.common.speedMultiplier} min={0.5} max={5} step={0.01} onChange={(speedMultiplier) => setTuning({ common: { speedMultiplier } })} />
               <Slider label="Turbo" value={tuning.common.boostMultiplier ?? 1} min={1} max={2.5} step={0.01} onChange={(boostMultiplier) => setTuning({ common: { boostMultiplier } })} />
               <Slider label="Jump Height" value={tuning.common.jumpVelocity} min={3} max={20} step={0.01} onChange={(jumpVelocity) => setTuning({ common: { jumpVelocity } })} />
-              <Slider label="Camera Distance" value={tuning.common.cameraDistance} min={2} max={8} step={0.01} onChange={(cameraDistance) => setTuning({ common: { cameraDistance } })} />
-              <Slider label="Camera Smoothness" value={tuning.common.cameraSmoothTime} min={0.02} max={0.4} step={0.01} onChange={(cameraSmoothTime) => setTuning({ common: { cameraSmoothTime } })} />
             </Section>
           )}
 
@@ -302,23 +299,6 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
                 <Slider label="Stability" value={tuning.board.dampingC} min={3000} max={12000} step={50} onChange={(dampingC) => setTuning({ board: { dampingC } })} />
               </Section>
               <div className="space-y-3">
-                <Section title="Vehicle" eyebrow="Current">
-                  {vehicleModel && (
-                    <div className="rounded-[1.5rem] border border-cyan-300/30 bg-white/[0.04] px-4 py-4 text-[16px] text-white/75 leading-snug">
-                      Active vehicle
-                      <div className="mt-1 text-[24px] font-black tracking-[-0.04em] text-white">{vehicleModel}</div>
-                      {ECCTRL_VEHICLE_TUNING_PRESETS[vehicleModel] && (
-                        <div className="mt-2 text-[15px] text-cyan-200/90">
-                          Auto preset: <span className="font-black uppercase tracking-[0.12em]">{ECCTRL_VEHICLE_TUNING_PRESETS[vehicleModel]}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <div className="grid grid-cols-2 gap-2">
-                    <ActionButton onClick={() => applyPreset("car")}>Car</ActionButton>
-                    <ActionButton onClick={() => applyPreset("drone")}>Drone</ActionButton>
-                  </div>
-                </Section>
                 <Section title="Presets" eyebrow="Fast Swap">
                   <div className="grid grid-cols-3 gap-2">
                     <ActionButton onClick={() => applyPreset("stable")}>Stable</ActionButton>
@@ -332,8 +312,8 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
 
           {tab === "air" && (
             <Section title="Drone Feel" eyebrow="Air">
-              <Slider label="Lift" value={tuning.drone.maxThrust} min={3000} max={9000} step={10} onChange={(maxThrust) => setTuning({ drone: { maxThrust } })} />
-              <Slider label="Cruise Speed" value={tuning.drone.maxHorizSpeed} min={8} max={40} step={0.01} onChange={(maxHorizSpeed) => setTuning({ drone: { maxHorizSpeed } })} />
+              <Slider label="Boost Speed" value={tuning.drone.boostSpeedMult ?? 1.4} min={1} max={3} step={0.01} onChange={(boostSpeedMult) => setTuning({ drone: { boostSpeedMult } })} />
+              <Slider label="Throttle Up Speed" value={tuning.drone.maxVertSpeed} min={3} max={20} step={0.01} onChange={(maxVertSpeed) => setTuning({ drone: { maxVertSpeed } })} />
             </Section>
           )}
         </div>
