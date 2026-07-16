@@ -276,7 +276,10 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
-.ui-button:focus {
+/* Only lobby buttons get a focus ring, for controller/keyboard nav in the
+   lobby. In-game white buttons (Invite / Respawn / Menu) deliberately have
+   NO focus ring — there's no menu to navigate there, so the box is noise. */
+.lobby-button:focus-visible {
   outline: 3px solid rgba(103, 232, 249, 0.95);
   outline-offset: 3px;
   box-shadow: 0 0 0 4px rgba(103, 232, 249, 0.25), 0 0 22px rgba(103, 232, 249, 0.35);

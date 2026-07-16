@@ -3,7 +3,7 @@ import { CuboidCollider, CylinderCollider, useBeforePhysicsStep, useRapier } fro
 import { EcctrlCameraControls } from "ecctrl/camera";
 import { useButtonStore, useJoystickStore } from "ecctrl/input";
 import { EcctrlVehicle, ShapeCastWheel, ThrustPropeller } from "ecctrl/vehicle";
-import { myPlayer, usePlayerState, send, setDamageHandler, getInterpolatedTransform } from "../../multiplayer/party";
+import { myPlayer, usePlayerState, send, setDamageHandler, getLatestTransform, setTransform, getPeerDebug, setRenderLag } from "../../multiplayer/party";
 import {
   fireBeam,
   BEAM_LENGTH,
@@ -12,7 +12,6 @@ import {
   KNOCKBACK,
   KNOCKBACK_PREDICT_MAG,
 } from "./laserStore";
-import { consumeKnockback } from "./knockbackPredict";
 import { useHealthStore } from "./healthStore";
 import { useHeatStore } from "./heatStore";
 import { useAtomValue } from "jotai";
@@ -46,10 +45,12 @@ import {
 
 const ARCADE_JUMP_IMPULSE = 360;
 const WORLD_UP = new Vector3(0, 1, 0);
-  const BOOST_DRAIN = 0.22;
-  const BOOST_RECHARGE = 0.32;
-  const BOOST_LOCK_THRESHOLD = 0.2;
-  const BOOST_BURST = 22;
+  const BOOST_DRAIN = 0.16;
+  const BOOST_RECHARGE = 0.34;
+  const BOOST_LOCK_THRESHOLD = 0.18;
+  // Slightly higher tilt while boosting => a bit faster ramp, but not so high
+  // it flips the drone.
+  const BOOST_TILT = Math.PI / 3.4;
 
 // Reused temps to avoid per-frame allocations (GC stutter).
 const _qPrev = new Quaternion();
@@ -62,6 +63,14 @@ function hashStringToSlot(id, mod = 64) {
     h = Math.imul(h, 16777619);
   }
   return Math.abs(h) % mod;
+}
+// Test-arena spawns: two players facing each other 10m apart (z = -5 vs +5).
+const TEST_SPAWNS = [
+  { x: 0, y: 0.6, z: -5, ry: 0 },
+  { x: 0, y: 0.6, z: 5, ry: Math.PI },
+];
+function getTestSpawn(index = 0) {
+  return TEST_SPAWNS[index % TEST_SPAWNS.length];
 }
 function joystickToVehicleInput(controls) {
   if (!controls.isJoystickPressed()) return { x: 0, y: 0 };
@@ -169,7 +178,7 @@ function DroneControllerBody({ drone, paused, boostMultiplier = 1 }) {
   );
 }
 
-export const RiderController = ({ state, controls, getGroundHeight, debugMode = false, onFire }) => {
+export const RiderController = ({ state, controls, getGroundHeight, debugMode = false, onFire, testSpawn = false }) => {
   const vehicle = useRef();
   const cameraControls = useRef();
   const cameraUp = useRef(new Vector3(0, 1, 0));
@@ -177,6 +186,7 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
   const cameraFinalDir = useRef(new Vector3());
   const cameraTurnCrossAxis = useRef(new Vector3());
   const yawCrossAxis = useRef(new Vector3());
+  const boostDir = useRef(new Vector3());
   const mouseLook = useRef({ x: 0, y: 0 });
   const pointerLocked = useRef(false);
   const fireHeld = useRef(false);
@@ -199,8 +209,8 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
   const boostEnergy = useRef(1);
   const boostLocked = useRef(false);
   const boostMultiplier = boostActive ? tuning.common.boostMultiplier ?? 1.45 : 1;
-  const BOOST_SPEED_MULT = 3.2;
-  const BOOST_VERT_MULT = 2.6;
+  const BOOST_SPEED_MULT = 1.4;
+  const BOOST_VERT_MULT = 1.4;
   const menuOpen = useAtomValue(GameMenuOpenAtom);
   const gamepadRef = useGamepadRef();
   const keys = useRef({
@@ -219,8 +229,13 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
   const lastRespawnAt = useRef(0);
   const spawnPoint = useRef(null);
   const lastJumpAt = useRef(0);
-  const wasBoosting = useRef(false);
-  const boostImpulseDone = useRef(false);
+  // Smoothed remote position we drive the kinematic body toward.
+  const remoteLerp = useRef({ x: 0, y: 0, z: 0, init: false });
+  // Time constant for remote position smoothing (seconds). Lower = snappier
+  // tracking; higher = smoother but laggier. The respawn test proved the
+  // pipeline is instant, so the "delay" on continuous movement was this TAU.
+  // 0.03 ≈ 30ms trailing — feels live while still hiding packet jitter.
+  const REMOTE_LERP_TAU = 0.03;
   const lastDebugAt = useRef(0);
   const jumpRequested = useRef(false);
   const ecctrlJoystick = useRef({ active: false, x: 0, y: 0 });
@@ -293,7 +308,7 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
       maxYawRate: tuning.drone.maxYawRate,
       maxHorizSpeed: tuning.drone.maxHorizSpeed * tuning.common.speedMultiplier * (boostActive ? BOOST_SPEED_MULT : 1),
       maxVertSpeed: tuning.drone.maxVertSpeed * tuning.common.speedMultiplier * (boostActive ? BOOST_VERT_MULT : 1),
-      maxTiltAngle: tuning.drone.maxTiltAngle,
+      maxTiltAngle: boostActive ? BOOST_TILT : tuning.drone.maxTiltAngle,
       airDragFactor: tuning.drone.airDragFactor,
       TILT_P: tuning.drone.TILT_P,
       TILT_D: tuning.drone.TILT_D,
@@ -519,23 +534,43 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
     if (!isLocal || !body) return;
     const slot = me.getState("slot");
     const slotIndex = typeof slot === "number" && Number.isFinite(slot) ? slot : hashStringToSlot(me.id);
-    const point = getGroundHeight
-      ? getLunarSpawnPoint({
-          respawnIndex: slotIndex,
-          groundHeight: getGroundHeight,
-        })
-      : {
-          x: randInt(-10, 10) * 5,
-          y: 2,
-          z: randInt(-10, 10) * 5,
-        };
+    let point;
+    let faceY = 0;
+    if (testSpawn) {
+      const ts = getTestSpawn(slotIndex);
+      point = { x: ts.x, y: ts.y, z: ts.z };
+      faceY = ts.ry;
+    } else {
+      point = getGroundHeight
+        ? getLunarSpawnPoint({
+            respawnIndex: slotIndex,
+            groundHeight: getGroundHeight,
+          })
+        : {
+            x: randInt(-10, 10) * 5,
+            y: 2,
+            z: randInt(-10, 10) * 5,
+          };
+    }
 
     spawnPoint.current = point;
 
     body.setTranslation({ x: point.x, y: point.y, z: point.z }, true);
     body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
+    body.setRotation({ x: 0, y: Math.sin(faceY / 2), z: 0, w: Math.cos(faceY / 2) }, true);
+
+    // Clear any stale velocity snapshot so the next frame doesn't report
+    // leftover momentum (which the camera align + network sync would echo).
+    cachedBodyState.current.linvel = { x: 0, y: 0, z: 0 };
+    cachedBodyState.current.angvel = { x: 0, y: 0, z: 0 };
+
+    // Snap the camera directly behind the spawn facing forward (+Z) so the
+    // character doesn't appear to face left while the camera slowly catches up.
+    if (cameraControls.current) {
+      const dist = cameraControls.current.minDistance + 6;
+      cameraControls.current.setLookAt(point.x, point.y + tuning.common.cameraHeight, point.z - dist, point.x, point.y + tuning.common.cameraHeight, point.z, false);
+    }
 
     // Reset cannon heat + drop any active beam on respawn.
     heat.current = 0;
@@ -655,17 +690,10 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
         if (canBoost !== boostActive) setBoostActive(canBoost);
         setBoost(boostEnergy.current, canBoost, boostLocked.current);
 
-        if (canBoost && !boostImpulseDone.current) {
-          boostImpulseDone.current = true;
-          const fwd = handle.bodyZAxis;
-          const horiz = new Vector3(fwd.x, 0, fwd.z);
-          if (horiz.lengthSq() > 1e-4) {
-            horiz.normalize().multiplyScalar(BOOST_BURST);
-            const v = handle.body.linvel();
-            handle.body.setLinvel({ x: v.x + horiz.x, y: v.y, z: v.z + horiz.z }, true);
-          }
-        }
-        if (!canBoost) boostImpulseDone.current = false;
+        // Boost is driven entirely through ecctrl's own smoothed inputs (same
+        // path Space uses), so it feels natural instead of jerky. While boosting
+        // we inject an analog pitch/roll demand and lift the speed caps. No raw
+        // velocity injection — ecctrl's PD controller eases it like normal input.
 
         if (cameraControls.current) {
           cameraControls.current.moveTo(handle.currPos.x, handle.currPos.y + tuning.common.cameraHeight, handle.currPos.z, true);
@@ -689,15 +717,6 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
           const zoomIn = pad.dpadUp;
           const zoomOut = pad.dpadDown;
           const zoomSpeed = 18;
-          window.__zoomDebug = {
-            dpadUp: zoomIn,
-            dpadDown: zoomOut,
-            dist: cameraControls.current.getDistance ? cameraControls.current.getDistance() : null,
-            min: cameraControls.current.minDistance,
-            max: cameraControls.current.maxDistance,
-            colliders: cameraControls.current.colliderMeshes ? cameraControls.current.colliderMeshes.length : -1,
-            hasCC: !!cameraControls.current,
-          };
           if (zoomIn) cameraControls.current.dolly(zoomSpeed * delta, false);
           if (zoomOut) cameraControls.current.dolly(-zoomSpeed * delta, false);
 
@@ -735,12 +754,29 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
         const stickStrafe = settings.invertSteering ? -pad.axes.lx : pad.axes.lx;
         const mobile = ecctrlJoystick.current.active ? joystickL : { x: 0, y: 0 };
 
-        const pitchForward = keys.current.forward || stickFwd > 0.2 || mobile.y > 0.2 || canBoost;
+        const pitchForward = keys.current.forward || stickFwd > 0.2 || mobile.y > 0.2;
         const pitchBackward = keys.current.back || stickFwd < -0.2 || mobile.y < -0.2;
         const throttleUp = keys.current.up || pad.buttons.a;
         const rollLeft = keys.current.left || stickStrafe < -0.2 || mobile.x < -0.2;
         const rollRight = keys.current.right || stickStrafe > 0.2 || mobile.x > 0.2;
         const throttleDown = keys.current.down || pad.buttons.b;
+
+        // Boost is just a smoothed analog pitch/roll demand fed through ecctrl's
+        // own drone controller (same path Space uses). It follows your current
+        // tilt, scales with BOOST_SPEED_MULT, and never forces a direction on its
+        // own. Throttle is left to the player's own Up key so boost won't launch
+        // you straight up when holding W.
+        let boostRx = 0;
+        let boostRy = 0;
+        if (canBoost) {
+          if (pitchForward) boostRy += 1;
+          if (pitchBackward) boostRy -= 1;
+          if (rollRight) boostRx += 1;
+          if (rollLeft) boostRx -= 1;
+          if (boostRx === 0 && boostRy === 0) boostRy = 1;
+          boostRx *= BOOST_SPEED_MULT;
+          boostRy *= BOOST_SPEED_MULT;
+        }
 
         let autoYaw = 0;
         if (cameraControls.current) {
@@ -762,7 +798,7 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
           rollLeft,
           rollRight,
           joystickL: { x: -autoYaw, y: 0 },
-          joystickR: mobile,
+          joystickR: { x: mobile.x + boostRx, y: mobile.y + boostRy },
         });
       } else {
         handle.setMovement({
@@ -795,9 +831,14 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
         lastRespawnAt.current = respawnAt;
         respawn();
       }
-      state.setState("pos", cachedBodyState.current.pos);
-      state.setState("rot", cachedBodyState.current.rot);
-      state.setState("vel", cachedBodyState.current.linvel);
+      // Publish transform as ONE phase-aligned message (pos/rot/vel together)
+      // so the receiver's interpolation buffer never gets out-of-phase partial
+      // snapshots. setTransform also updates local state.
+      setTransform(state, {
+        pos: cachedBodyState.current.pos,
+        rot: cachedBodyState.current.rot,
+        vel: cachedBodyState.current.linvel,
+      });
       if (getGroundHeight) {
         const pos = cachedBodyState.current.pos;
         if (pos.y < getGroundHeight(pos.x, pos.z) - 120) respawn();
@@ -844,38 +885,69 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
         }
       }
       } else if (!isLocal) {
-        // Snapshot interpolation: render this remote avatar at a fixed delay
-        // behind real time, lerped between the two network snapshots that
-        // bracket the render time. We never extrapolate past known data, so
-        // there is no overshoot/snap-back when packets arrive.
-        const snap = getInterpolatedTransform(state.id);
-        if (snap && snap.pos) {
-          let px = snap.pos.x;
-          let py = snap.pos.y;
-          let pz = snap.pos.z;
-          // Predicted knockback: nudge the victim's avatar immediately on this
-          // screen so the hit reads as instant, then reconcile to zero as the
-          // interpolated network position catches up.
-          const kb = consumeKnockback(state.id, { x: px, y: py, z: pz }, delta);
-          if (kb) {
-            px += kb.x;
-            py += kb.y;
-            pz += kb.z;
+        // Remote players: lerp the kinematic body toward the LATEST network
+        // position/rotation every frame (standard R3F multiplayer approach).
+        // No fixed delay, no snapshot buffer — that older approach rendered
+        // remote avatars in the past, causing freeze-then-teleport. This tracks
+        // tightly on localhost and gracefully chases under real latency.
+        const snap = getLatestTransform(state.id);
+        if (snap && snap.pos && Number.isFinite(snap.pos.x)) {
+          const lerpPos = remoteLerp.current;
+          if (!lerpPos.init) {
+            lerpPos.x = snap.pos.x; lerpPos.y = snap.pos.y; lerpPos.z = snap.pos.z;
+            lerpPos.init = true;
           }
-          // Rapier traps (wasm "unreachable") on non-finite transforms, which
-          // then cascades into alias errors during the step. Never feed it NaN.
-          if (Number.isFinite(px) && Number.isFinite(py) && Number.isFinite(pz)) {
-            handle.body.setNextKinematicTranslation({ x: px, y: py, z: pz });
+          // Frame-rate independent smoothing toward the newest network sample.
+          const a = 1 - Math.exp(-delta / REMOTE_LERP_TAU);
+          lerpPos.x += (snap.pos.x - lerpPos.x) * a;
+          lerpPos.y += (snap.pos.y - lerpPos.y) * a;
+          lerpPos.z += (snap.pos.z - lerpPos.z) * a;
+          // Debug: estimate how far behind "now" this avatar is drawn.
+          // distance not-yet-covered / network speed ≈ time behind.
+          if (isLocal) {
+            const dx = snap.pos.x - lerpPos.x;
+            const dy = snap.pos.y - lerpPos.y;
+            const dz = snap.pos.z - lerpPos.z;
+            const gap = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            const v = snap.vel ? Math.hypot(snap.vel.x, snap.vel.y, snap.vel.z) : 0;
+            const peer = getPeerDebug(state.id);
+            const lag = peer ? (v > 0.01 ? (gap / v) * 1000 : 0) + peer.ageMs : gap > 0.01 ? 999 : 0;
+            setRenderLag(lag);
+          }
+          // Rapier traps (wasm "unreachable") on non-finite transforms. Guard.
+          if (Number.isFinite(lerpPos.x) && Number.isFinite(lerpPos.y) && Number.isFinite(lerpPos.z)) {
+            handle.body.setNextKinematicTranslation({ x: lerpPos.x, y: lerpPos.y, z: lerpPos.z });
             if (snap.rot && Number.isFinite(snap.rot.x) && Number.isFinite(snap.rot.w)) {
               handle.body.setNextKinematicRotation({ x: snap.rot.x, y: snap.rot.y, z: snap.rot.z, w: snap.rot.w });
             }
           } else {
             console.warn("[RiderController] dropped non-finite remote transform for", state.id);
           }
+        } else {
+          remoteLerp.current.init = false;
         }
       }
 
     if (controls.isPressed("Respawn")) respawn();
+  });
+
+  // Always-on transform broadcast for the LOCAL player. This intentionally
+  // runs regardless of stun/menu state: when the rider is knocked back, their
+  // physics body keeps moving, but the main control useFrame early-returns
+  // while stunned and stops calling setTransform — so remote clients freeze the
+  // avatar at the pre-hit spot until the stun ends (the "frozen ~1s then snaps"
+  // bug). Publishing every frame from the always-fresh cachedBodyState fixes it.
+  const lastSendAt = useRef(0);
+  // Mirror of POSITION_UPDATE_MS in party.js — how often we broadcast transform.
+  const LOCAL_SEND_MS = 15;
+  useFrame(() => {
+    if (!isLocal) return;
+    const now = performance.now();
+    if (now - lastSendAt.current < LOCAL_SEND_MS) return;
+    lastSendAt.current = now;
+    const b = cachedBodyState.current;
+    if (!b?.pos) return;
+    setTransform(state, { pos: b.pos, rot: b.rot, vel: b.linvel });
   });
 
   return (

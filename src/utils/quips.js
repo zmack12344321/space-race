@@ -64,24 +64,35 @@ export const NAME_QUIPS = [
   "Be someone, maybe.",
 ];
 
-export const PRACTICE_QUIPS = [
-  "Practice",
-  "Warm up",
-  "Solo run",
-  "No pressure",
-  "Training (lol)",
-  "Yolo run",
-];
-
 export const RESPAWN_QUIPS = [
   "Again?",
-  "Back?",
   "Re-dog.",
   "Bounce.",
   "Up you go.",
   "Whoops.",
   "Respawn.",
   "Here we go.",
+  "Bruh",
+  "Run it back",
+  "Aww shit, here we go again",
+  "Crank it",
+  "Yikes.",
+  "Not again.",
+  "Round 2.",
+  "Lmao, again",
+];
+
+export const START_QUIPS = [
+  "Start",
+  "Run it",
+  "Get it",
+  "Crank it",
+  "Let's go",
+  "Ready",
+  "Do it",
+  "Send it",
+  "Go off",
+  "Lock in",
 ];
 
 export const makeQuipPicker = (arr) => {

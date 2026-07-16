@@ -68,8 +68,19 @@ export function MountainRange({
       }
     }
 
+    // Vertical gradient: ridge brighter, base darker. Gives cheap depth so
+    // the flat wall reads as a lit massif instead of a silhouette cutout.
+    const colors = [];
+    const topColor = new THREE.Color(color);
+    const baseColor = topColor.clone().multiplyScalar(0.45);
+    for (let i = 0; i <= segments; i++) {
+      colors.push(topColor.r, topColor.g, topColor.b);
+      colors.push(baseColor.r, baseColor.g, baseColor.b);
+    }
+
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
     geo.setIndex(indices);
     geo.computeVertexNormals();
     return geo;
@@ -82,7 +93,7 @@ export function MountainRange({
       frustumCulled={false}
       raycast={() => null}
     >
-      <meshBasicMaterial color={color} side={THREE.DoubleSide} fog />
+      <meshBasicMaterial vertexColors side={THREE.DoubleSide} fog />
     </mesh>
   );
 
@@ -110,38 +121,62 @@ export function DistantMountains({
 } = {}) {
   const bands = useMemo(
     () => [
-      // Far — lightest, bluest, lowest contrast, haziest.
+      // Far — lightest, bluest, lowest contrast, haziest, shorter so it
+      // reads as distance, not a wall. Melts into horizon fog.
       {
-        radius: radius + 170,
-        height: height * 1.75,
-        segments: Math.round(segments * 0.6),
-        strips: 9,
+        radius: radius + 200,
+        height: height * 1.1,
+        segments: Math.round(segments * 0.55),
+        strips: 10,
         seed: seed + 13,
-        color: "#1c2942",
-        y: 6,
+        color: "#22324f",
+        y: 8,
         depth: 0,
       },
-      // Mid — medium.
+      // Far-mid.
       {
-        radius: radius + 90,
-        height: height * 1.4,
-        segments: Math.round(segments * 0.8),
-        strips: 7,
+        radius: radius + 110,
+        height: height * 1.08,
+        segments: Math.round(segments * 0.7),
+        strips: 9,
+        seed: seed + 11,
+        color: "#1a2740",
+        y: 5,
+        depth: depth * 0.35,
+      },
+      // Mid.
+      {
+        radius: radius + 25,
+        height: height * 1.04,
+        segments: Math.round(segments * 0.85),
+        strips: 8,
         seed: seed + 8,
         color: "#142033",
         y: 2,
         depth: depth * 0.6,
       },
-      // Near — darkest, most defined, highest contrast.
+      // Near-mid — bridges the big gap to the foreground.
       {
-        radius,
-        height,
-        segments,
-        strips: 6,
-        seed,
-        color,
-        y: -2,
-        depth,
+        radius: radius - 90,
+        height: height * 1.1,
+        segments: Math.round(segments * 1.05),
+        strips: 8,
+        seed: seed + 5,
+        color: "#101a2c",
+        y: -1,
+        depth: depth * 0.85,
+      },
+      // Foreground — closest, fills gap between gameplay and far wall.
+      // Darkest + tallest + most defined; base melts into fog like terrain.
+      {
+        radius: radius - 210,
+        height: height * 1.25,
+        segments: Math.round(segments * 1.35),
+        strips: 12,
+        seed: seed + 21,
+        color: "#0b1320",
+        y: -6,
+        depth: depth * 1.4,
       },
     ],
     [radius, height, depth, segments, seed, color]

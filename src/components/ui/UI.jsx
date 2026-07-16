@@ -14,83 +14,17 @@ import { useEffect, useRef, useState } from "react";
 import { Joystick, VirtualButton } from "ecctrl/input";
 import { VEHICLE_MODELS, VEHICLE_THUMBNAILS } from "../vehicles/vehicleConfig";
 import { PauseMenu } from "./PauseMenu";
+import { EcctrlTuningPanel } from "./EcctrlControlPanel";
 import { PhysicsDebugAtom, GameReadyAtom } from "./debugState";
 import { useIsTouchDevice } from "./useIsTouchDevice";
 import { getLunarSeed, setLunarSeed } from "../../utils/lunarHeightfield";
-import { useGamepadRef, getGamepadState } from "./gamepadStore";
-import { TITLE_QUIPS, LOADING_QUIPS, PLAY_QUIPS, NAME_QUIPS, PRACTICE_QUIPS, RESPAWN_QUIPS, makeQuipPicker } from "../../utils/quips";
+import { useGamepadRef } from "./gamepadStore";
+import { TITLE_QUIPS, LOADING_QUIPS, PLAY_QUIPS, NAME_QUIPS, RESPAWN_QUIPS, START_QUIPS, makeQuipPicker } from "../../utils/quips";
 import { BoostMeter } from "./BoostMeter";
 import { HeatMeter } from "./HeatMeter";
 
 export const NameEditingAtom = atom(false);
 export const GameMenuOpenAtom = atom(false);
-
-function GamepadDebug() {
-  const [show, setShow] = useState(false);
-  const [info, setInfo] = useState({ connected: false, pressed: "", axes: "" });
-
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.code === "Backquote") setShow((s) => !s);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
-  useEffect(() => {
-    if (!show) return;
-    let raf = 0;
-    let last = 0;
-    const loop = (t) => {
-      if (t - last > 100) {
-        last = t;
-        const pads = typeof navigator !== "undefined" && navigator.getGamepads ? navigator.getGamepads() : [];
-        const pad = pads && [...pads].find((p) => p);
-        const buttons = pad ? pad.buttons.map((b, i) => (b.pressed ? i : null)).filter((v) => v !== null) : [];
-        const axes = pad
-          ? pad.axes
-              .map((v, i) => (Math.abs(v) > 0.05 ? `${i}:${Number(v).toFixed(2)}` : null))
-              .filter(Boolean)
-              .join(" ")
-          : "";
-        const s = getGamepadState();
-        const zd = typeof window !== "undefined" && window.__zoomDebug ? window.__zoomDebug : null;
-        setInfo({
-          connected: Boolean(pad),
-          pressed: buttons.join(", "),
-          axes,
-          dpad: `up:${s.buttons.dpadUp} down:${s.buttons.dpadDown}`,
-          zoom: zd ? `dist:${zd.dist?.toFixed?.(2)} in:${zd.dpadUp} out:${zd.dpadDown} min:${zd.min} max:${zd.max} col:${zd.colliders} cc:${zd.hasCC}` : "n/a",
-        });
-      }
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, [show]);
-
-  if (!show) return null;
-  return (
-    <div
-      style={{
-        position: "fixed",
-        right: 8,
-        bottom: 8,
-        zIndex: 9999,
-        background: "rgba(0,0,0,0.82)",
-        color: "#5effa0",
-        font: "12px monospace",
-        padding: 10,
-        borderRadius: 8,
-        whiteSpace: "pre-wrap",
-        maxWidth: 360,
-        pointerEvents: "none",
-      }}
-    >
-       {`GAMEPAD DEBUG (press \` to hide)\nconnected: ${info.connected}\npressed: ${info.pressed || "none"}\naxes: ${info.axes || "none"}\ndpad(store): ${info.dpad}\nzoom: ${info.zoom}`}
-    </div>
-  );
-}
 
 const LOADING_STARS = [
   { cx: 6, cy: 14, r: 1.6, delay: "0s" },
@@ -375,7 +309,7 @@ function TitleScreen({ onEnterLobby, quip, playQuip }) {
             {quip}
           </div>
           <div className="mt-8 flex justify-center">
-            <button className="ui-button px-10 py-4 bg-gray-100 text-black text-2xl sm:text-4xl rounded-full touch-manipulation" onClick={onEnterLobby}>
+            <button className="ui-button loby-button px-10 py-4 bg-gray-100 text-black text-2xl sm:text-4xl rounded-full touch-manipulation" onClick={onEnterLobby}>
               {playQuip}
             </button>
           </div>
@@ -391,6 +325,7 @@ export const UI = () => {
   const [loadingSlide, setLoadingSlide] = useState(true);
   const [nameEditing, setNameEditing] = useAtom(NameEditingAtom);
   const [menuOpen, setMenuOpen] = useAtom(GameMenuOpenAtom);
+  const [quickTuningOpen, setQuickTuningOpen] = useState(false);
   const [physicsDebug, setPhysicsDebug] = useAtom(PhysicsDebugAtom);
   const [gameReady, setGameReady] = useAtom(GameReadyAtom);
   const isPreviewMode = new URL(window.location.href).searchParams.get("preview") === "1";
@@ -412,14 +347,15 @@ export const UI = () => {
   const pickLoadingQuip = useState(() => makeQuipPicker(LOADING_QUIPS))[0];
   const pickPlayQuip = useState(() => makeQuipPicker(PLAY_QUIPS))[0];
   const pickNameQuip = useState(() => makeQuipPicker(NAME_QUIPS))[0];
-  const pickPracticeQuip = useState(() => makeQuipPicker(PRACTICE_QUIPS))[0];
   const pickRespawnQuip = useState(() => makeQuipPicker(RESPAWN_QUIPS))[0];
+  const pickStartQuip = useState(() => makeQuipPicker(START_QUIPS))[0];
   const [titleQuip] = useState(() => pickTitleQuip());
   const [loadingQuip] = useState(() => pickLoadingQuip());
   const [playQuip, setPlayQuip] = useState(() => pickPlayQuip());
   const [nameQuip] = useState(() => pickNameQuip());
-  const [practiceQuip] = useState(() => pickPracticeQuip());
   const [respawnQuip, setRespawnQuip] = useState(() => pickRespawnQuip());
+  const [respawnUsed, setRespawnUsed] = useState(false);
+  const [startQuip] = useState(() => pickStartQuip());
 
   const invite = () => {
     navigator.clipboard.writeText(window.location.href);
@@ -429,6 +365,7 @@ export const UI = () => {
 
   const respawn = () => {
     me?.setState("_respawnAt", Date.now());
+    setRespawnUsed(true);
     setRespawnQuip(pickRespawnQuip());
   };
 
@@ -488,7 +425,11 @@ export const UI = () => {
 
     const onKeyDown = (event) => {
       if (event.key === "Escape") {
-        setMenuOpen((value) => !value);
+        if (quickTuningOpen) {
+          setQuickTuningOpen(false);
+        } else {
+          setMenuOpen((value) => !value);
+        }
       }
     };
 
@@ -498,7 +439,11 @@ export const UI = () => {
     const tick = () => {
       const pad = gamepadRef.current;
       if (pad.justPressed.start) {
-        setMenuOpen((value) => !value);
+        if (quickTuningOpen) {
+          setQuickTuningOpen(false);
+        } else {
+          setMenuOpen((value) => !value);
+        }
       }
       if (isTestMode && pad.justPressed.back) {
         setPhysicsDebug((value) => !value);
@@ -512,7 +457,7 @@ export const UI = () => {
       window.removeEventListener("keydown", onKeyDown);
       cancelAnimationFrame(raf);
     };
-  }, [gameState, menuOpen, isTestMode, setMenuOpen, setPhysicsDebug, gamepadRef]);
+  }, [gameState, menuOpen, isTestMode, setMenuOpen, setPhysicsDebug, gamepadRef, quickTuningOpen, setQuickTuningOpen]);
 
   usePlayersList(true);
 
@@ -603,7 +548,6 @@ export const UI = () => {
 
   return (
     <>
-       <GamepadDebug />
        {gameState === "title" && <TitleScreen onEnterLobby={enterLobby} quip={titleQuip} playQuip={playQuip} />}
       {gameState === "loading" && loadingSlide && (
       <div
@@ -631,14 +575,23 @@ export const UI = () => {
       </div>
       )}
       {gameState === "game" && !loadingSlide && (
-        <button
-          type="button"
-          onClick={() => setMenuOpen((value) => !value)}
-          aria-label={menuOpen ? "Resume" : "Pause"}
-          className="ui-button pointer-events-auto fixed left-4 top-4 z-50 px-8 py-2 bg-gray-100 text-black text-2xl rounded-md flex items-center gap-2"
-        >
-          {menuOpen ? "Resume" : "Menu"}
-        </button>
+        <div className="fixed left-4 top-4 z-50 flex flex-col items-start gap-2">
+          <button
+            type="button"
+            onClick={() => setMenuOpen((value) => !value)}
+            aria-label={menuOpen ? "Resume" : "Pause"}
+            className="ui-button pointer-events-auto px-8 py-2 bg-gray-100 text-black text-2xl rounded-md flex items-center gap-2"
+          >
+            {menuOpen ? "Resume" : "Menu"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setQuickTuningOpen(true)}
+            className="ui-button pointer-events-auto px-8 py-2 bg-gray-100 text-black text-2xl rounded-md flex items-center gap-2"
+          >
+            Quick Tuning
+          </button>
+        </div>
       )}
       {gameState === "game" && (
         <PauseMenu
@@ -651,6 +604,14 @@ export const UI = () => {
           vehicleModel={me?.getState("vehicle") || "longboard"}
         />
       )}
+      {gameState === "game" && quickTuningOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden p-4 pointer-events-none">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm pointer-events-auto" onClick={() => setQuickTuningOpen(false)} aria-hidden="true" />
+          <div className="relative z-10 pointer-events-auto">
+            <EcctrlTuningPanel open={quickTuningOpen} onClose={() => setQuickTuningOpen(false)} vehicleModel={me?.getState("vehicle") || "longboard"} />
+          </div>
+        </div>
+      )}
       {me && <BoardSelector me={me} menuOpen={menuOpen} />}
       {gameState === "game" && !menuOpen && <BoostMeter />}
       {gameState === "game" && !menuOpen && <HeatMeter />}
@@ -659,20 +620,7 @@ export const UI = () => {
         <div className="fixed bottom-4 right-4 z-10 w-[min(92vw,24rem)] flex flex-col gap-3 items-stretch sm:items-end">
           <button
             ref={(el) => { lobbyActionRefs.current[0] = el; }}
-            className="ui-button min-h-14 w-full sm:w-auto px-8 py-4 bg-gray-100 text-black text-2xl sm:text-3xl rounded-md touch-manipulation"
-            onClick={() => {
-              requestGamePointerLock();
-              setGameState("loading");
-              setTimeout(() => {
-                setGameState("game");
-              }, 500);
-            }}
-          >
-            {practiceQuip}
-          </button>
-          <button
-            ref={(el) => { lobbyActionRefs.current[1] = el; }}
-            className="ui-button min-h-14 w-full sm:w-auto px-8 py-4 bg-gray-100 text-black text-2xl sm:text-3xl rounded-md touch-manipulation"
+            className="ui-button loby-button min-h-14 w-full sm:w-auto px-8 py-4 bg-gray-100 text-black text-2xl sm:text-3xl rounded-md touch-manipulation"
             onClick={async () => {
               requestGamePointerLock();
               setGameState("loading");
@@ -680,7 +628,7 @@ export const UI = () => {
               setGameState("game");
             }}
           >
-            Start
+            {startQuip}
           </button>
         </div>
       )}
@@ -702,7 +650,7 @@ export const UI = () => {
       )}
       <div className="z-20 fixed top-4 right-4 flex flex-col items-end gap-2">
         <button
-          className="ui-button min-h-14 px-8 py-3 bg-gray-100 text-black text-2xl sm:text-3xl rounded-md flex items-center gap-2 touch-manipulation"
+          className="ui-button lobby-button min-h-14 px-8 py-3 bg-gray-100 text-black text-xl sm:text-2xl rounded-md flex items-center gap-2 touch-manipulation"
           onClick={invite}
           disabled={invited}
         >
@@ -713,7 +661,7 @@ export const UI = () => {
             className="ui-button min-h-14 px-8 py-3 bg-gray-100 text-black text-xl sm:text-2xl rounded-md flex items-center gap-2 touch-manipulation"
             onClick={respawn}
           >
-            {respawnQuip}
+            {respawnUsed ? respawnQuip : "Respawn"}
           </button>
         )}
         {isTestMode && gameState === "game" && (

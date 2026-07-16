@@ -8,7 +8,7 @@ import {
   Object3D,
   Vector3,
 } from "three";
-import { myPlayer, usePlayersList, send, getInterpolatedTransform } from "../../multiplayer/party";
+import { myPlayer, usePlayersList, send, getLatestTransform } from "../../multiplayer/party";
 import {
   getLaserPool,
   HIT_RADIUS,
@@ -64,8 +64,8 @@ export function LaserSystem({ getGroundHeight }) {
   // pos if interpolation has no data yet.
   const getRemoteHitPos = (pl) => {
     if (pl.id === myId) return pl.getState ? pl.getState("pos") : pl.state?.pos;
-    const interp = getInterpolatedTransform(pl.id);
-    return interp?.pos || (pl.getState ? pl.getState("pos") : pl.state?.pos);
+    const latest = getLatestTransform(pl.id);
+    return latest?.pos || (pl.getState ? pl.getState("pos") : pl.state?.pos);
   };
 
   const geometry = useMemo(() => {

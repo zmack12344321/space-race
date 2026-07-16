@@ -5,6 +5,7 @@ import { AdaptiveDpr, AdaptiveEvents, PerformanceMonitor, Preload } from "@react
 import { EffectComposer } from "@react-three/postprocessing";
 import { Experience } from "./components/core/Experience";
 import { UI } from "./components/ui/UI";
+import { NetDebugOverlay } from "./components/ui/NetDebugOverlay";
 import { PhysicsDebugAtom } from "./components/ui/debugState";
 import { useMultiplayerState } from "./multiplayer/party";
 import { ShaderPreview } from "./components/environment/ShaderPreview";
@@ -22,33 +23,36 @@ function App() {
   return (
     <>
       <UI />
-      <Canvas
-        shadows={{ type: THREE.PCFShadowMap }}
-        dpr={[1, 2]}
-        gl={{
-          antialias: true,
-          toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 0.65,
-        }}
-        onCreated={({ gl }) => {
-          gl.outputColorSpace = THREE.SRGBColorSpace;
-        }}
-        camera={{ position: [4.2, 1.5, 7.5], fov: 45, near: 0.5, far: 2500 }}
-      >
-        <color attach="background" args={["#02040a"]} />
-        <PerformanceMonitor>
-          <AdaptiveEvents />
-          <AdaptiveDpr />
-          <Preload all />
-          <EffectComposer multisampling={4} />
-          <Experience
-            level={isTestMode ? "skatepark" : "lunar"}
-            physicsDebug={physicsDebug}
-            debugMode={isTestMode}
-            skyMode="purple"
-          />
-        </PerformanceMonitor>
-      </Canvas>
+      {isTestMode && <NetDebugOverlay />}
+      <div className="fixed inset-0">
+        <Canvas
+          shadows={{ type: THREE.PCFShadowMap }}
+          dpr={[1, 2]}
+          gl={{
+            antialias: true,
+            toneMapping: THREE.ACESFilmicToneMapping,
+            toneMappingExposure: 0.65,
+          }}
+          onCreated={({ gl }) => {
+            gl.outputColorSpace = THREE.SRGBColorSpace;
+          }}
+          camera={{ position: [4.2, 1.5, 7.5], fov: 45, near: 0.5, far: 2500 }}
+        >
+          <color attach="background" args={["#02040a"]} />
+          <PerformanceMonitor>
+            <AdaptiveEvents />
+            <AdaptiveDpr />
+            <Preload all />
+            <EffectComposer multisampling={4} />
+            <Experience
+              level={isTestMode ? "test" : "lunar"}
+              physicsDebug={physicsDebug}
+              debugMode={isTestMode}
+              skyMode="purple"
+            />
+          </PerformanceMonitor>
+        </Canvas>
+      </div>
     </>
   );
 }

@@ -30,6 +30,29 @@ function GravitySetup() {
   return null;
 }
 
+// Minimal flat-plane test arena: two players spawn facing each other 10m apart
+// so we can isolate netcode/lag/knockback without the full game world.
+function TestArena() {
+  return (
+    <>
+      <ambientLight intensity={0.6} />
+      <directionalLight position={[10, 20, 10]} intensity={2.5} castShadow shadow-mapSize={[1024, 1024]} />
+      <pointLight position={[0, 6, 0]} intensity={0.6} distance={40} />
+      <color attach="background" args={["#0a0e1a"]} />
+      <RigidBody type="fixed" colliders="cuboid">
+        <mesh receiveShadow position={[0, 0, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[60, 60]} />
+          <meshStandardMaterial color="#2a2f3a" />
+        </mesh>
+      </RigidBody>
+      {/* Void catch so fallers respawn instead of flying forever */}
+      <RigidBody type="fixed" sensor colliders={false} position={[0, -10, 0]} name="void">
+        <CuboidCollider args={[40, 3, 40]} />
+      </RigidBody>
+    </>
+  );
+}
+
 export const Game = ({ level = "lunar", physicsDebug = false, debugMode = false, skyMode = "blue" }) => {
   const [players, setPlayers] = useState([]);
   const paused = useAtomValue(GameMenuOpenAtom);
@@ -109,12 +132,15 @@ export const Game = ({ level = "lunar", physicsDebug = false, debugMode = false,
             key={state.id}
             state={state}
             controls={controls}
-            getGroundHeight={level === "lunar" ? getLunarHeight : level === "skatepark" ? () => 0 : undefined}
+            getGroundHeight={level === "lunar" ? getLunarHeight : () => 0}
+            testSpawn={level === "test"}
             debugMode={debugMode}
           />
         ))}
         {level === "lunar" ? null : level === "skatepark" ? (
           <Skatepark />
+        ) : level === "test" ? (
+          <TestArena />
         ) : (
           <>
             <RigidBody type="fixed" colliders="hull" rotation={[0, Math.PI, 0]}>

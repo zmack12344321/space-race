@@ -4,14 +4,14 @@ import { useMultiplayerState } from "../../multiplayer/party";
 import { useGamepadRef } from "./gamepadStore";
 
 const panelShell =
-  "w-[min(94vw,820px)] max-h-[min(88vh,660px)] overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/95 text-white shadow-[0_24px_80px_rgba(0,0,0,0.6)] flex pointer-events-auto";
+  "controls-font w-[min(94vw,820px)] max-h-[min(88vh,660px)] overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/92 p-7 text-white shadow-[0_30px_100px_rgba(0,0,0,0.6)] backdrop-blur-xl flex pointer-events-auto";
 
 function Slider({ label, value, min, max, step, onChange }) {
   return (
-    <label className="rounded-[22px] border border-white/10 bg-white/[0.04] px-5 py-4 flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-3 text-[18px] text-white/90">
-        <span className="font-black tracking-[-0.02em]">{label}</span>
-        <span className="font-mono text-[18px] text-white">
+    <label className="control-row rounded-[1.25rem] border border-white/[0.08] bg-black/20 px-5 py-4 flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-3 text-[18px] text-white">
+        <span className="font-black uppercase tracking-[0.14em]">{label}</span>
+        <span className="font-mono text-white/80">
           {typeof value === "number" ? value.toFixed(step < 1 ? 2 : 0) : value}
         </span>
       </div>
@@ -30,7 +30,7 @@ function Slider({ label, value, min, max, step, onChange }) {
 
 function Section({ title, eyebrow, children }) {
   return (
-    <section className="rounded-[22px] border border-white/10 bg-white/[0.04] px-5 py-5">
+    <section className="rounded-[1.5rem] border border-cyan-300/30 bg-white/[0.04] px-5 py-5">
       <div className="mb-4 flex items-baseline justify-between gap-3">
         <div>
           {eyebrow && <div className="text-[14px] font-bold uppercase tracking-[0.18em] text-cyan-300/90">{eyebrow}</div>}
@@ -246,40 +246,38 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
   if (!open) return null;
 
   return (
-    <div ref={panelRef} className={panelShell} style={{ fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
-      <div className="flex-1 overflow-y-auto p-6 game-menu-scroll">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="text-[14px] font-bold uppercase tracking-[0.24em] text-cyan-300/90">Settings</div>
-            <div className="mt-1 text-[34px] leading-none font-black tracking-[-0.05em] text-white">Quick Tuning</div>
-            <div className="mt-2 text-[16px] text-white/75">Simple controls. Big labels.</div>
-          </div>
+    <div ref={panelRef} className={panelShell}>
+      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-6 game-menu-scroll">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-[clamp(2.4rem,6vw,4rem)] font-black tracking-[-0.05em] leading-none">Quick Tuning</h2>
+        </div>
+        <button
+          type="button"
+          onClick={() => onClose?.()}
+          className="ui-button rounded-full border border-white/10 bg-white/[0.08] px-5 py-3 text-[16px] font-black uppercase tracking-[0.16em] text-white"
+        >
+          Close
+        </button>
+      </div>
+
+      <div className="mt-5 grid grid-cols-4 gap-3">
+        {tabs.map(([key, label]) => (
           <button
+            key={key}
             type="button"
-            onClick={() => onClose?.()}
-            className="ui-button rounded-full border border-white/10 bg-white/[0.08] px-5 py-3 text-[16px] font-black uppercase tracking-[0.16em] text-white"
+            onClick={() => setTab(key)}
+            data-tab={key}
+            className={`rounded-2xl border px-4 py-4 text-[17px] font-black uppercase tracking-[0.12em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/80 ${
+              tab === key ? "border-cyan-300/40 bg-cyan-300/18 text-cyan-200" : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+            }`}
           >
-            Close
+            {label}
           </button>
-        </div>
+        ))}
+      </div>
 
-        <div className="mt-5 grid grid-cols-4 gap-3">
-          {tabs.map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setTab(key)}
-              data-tab={key}
-              className={`rounded-2xl border px-4 py-4 text-[17px] font-black uppercase tracking-[0.12em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/80 ${
-                tab === key ? "border-cyan-300/40 bg-cyan-300/18 text-cyan-200" : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-5 max-h-[calc(88vh-18rem)] overflow-y-auto pr-2 game-menu-scroll">
+      <div className="mt-5 flex-1 overflow-y-auto pr-2 game-menu-scroll">
           {tab === "scene" && (
             <Section title="World" eyebrow="Scene">
               <Slider label="Sun Angle" value={sunAngle} min={0} max={1} step={0.01} onChange={setSunAngle} />
@@ -306,7 +304,7 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
               <div className="space-y-3">
                 <Section title="Vehicle" eyebrow="Current">
                   {vehicleModel && (
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 text-[16px] text-white/75 leading-snug">
+                    <div className="rounded-[1.5rem] border border-cyan-300/30 bg-white/[0.04] px-4 py-4 text-[16px] text-white/75 leading-snug">
                       Active vehicle
                       <div className="mt-1 text-[24px] font-black tracking-[-0.04em] text-white">{vehicleModel}</div>
                       {ECCTRL_VEHICLE_TUNING_PRESETS[vehicleModel] && (
@@ -327,9 +325,9 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
                     <ActionButton onClick={() => applyPreset("arcade")}>Arcade</ActionButton>
                     <ActionButton onClick={() => applyPreset("fast")}>Fast</ActionButton>
                   </div>
-                </Section>
-              </div>
-            </div>
+                 </Section>
+        </div>
+      </div>
           )}
 
           {tab === "air" && (

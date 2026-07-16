@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useGamepadRef } from "./gamepadStore";
-import { EcctrlTuningPanel } from "./EcctrlControlPanel";
 import { ControlsScreen } from "./ControlsData";
+import { GameSettings } from "./GameSettings";
 import { PAUSE_QUIPS, makeQuipPicker } from "../../utils/quips";
 
 const STICK_NAV = 0.55;
@@ -37,6 +37,8 @@ export function PauseMenu({ open, onResume, onQuit, vehicleModel }) {
     else if (key === "settings") setView("settings");
     else if (key === "quit") onQuit();
   };
+
+  const isSettingsView = view === "settings";
 
   useEffect(() => {
     if (!open || view !== "main") return;
@@ -130,7 +132,9 @@ export function PauseMenu({ open, onResume, onQuit, vehicleModel }) {
     return (
       <div className="fixed inset-0 z-40 flex items-center justify-center overflow-hidden p-4 pointer-events-none">
         <div className="absolute inset-0 bg-black/70 backdrop-blur-sm pointer-events-auto" onClick={() => setView("main")} aria-hidden="true" />
-        <EcctrlTuningPanel open={view === "settings"} onClose={() => setView("main")} vehicleModel={vehicleModel} />
+        <div className="relative z-10 w-[min(96vw,1120px)] pointer-events-auto rounded-[2rem] border border-white/10 bg-slate-950/92 p-7 text-white shadow-[0_30px_100px_rgba(0,0,0,0.6)] backdrop-blur-xl">
+          <GameSettings onBack={() => setView("main")} />
+        </div>
       </div>
     );
   }

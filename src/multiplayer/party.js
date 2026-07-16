@@ -12,98 +12,24 @@ const TRANSIENT_KEYS = new Set(["pos", "rot", "vel", "_controls"]);
 // Outbound position/rotation rate. Higher = smoother remote view (more
 // bandwidth). 20ms ≈ 50Hz, which makes remote avatars track closely to the
 // local 60fps view once interpolated.
-const POSITION_UPDATE_MS = 20;
+const POSITION_UPDATE_MS = 15;
 const DEFAULT_VEHICLE = "longboard";
 
-// Snapshot interpolation: remote avatars are rendered at a fixed delay behind
-// real time and lerped between the two network snapshots that bracket that
-// render time. This is the canonical approach (Gambetta) for smooth remote
-// motion — we never extrapolate *past* known data, so there is no overshoot or
-// snap-back when the next packet arrives. The delay trades a little latency for
-// zero jitter; 100ms covers ~5 snapshots at 50Hz so we always have a bracket.
-const INTERP_DELAY_MS = 100;
-const SNAPSHOT_BUFFER_MS = 2000;
-const _snapshots = new Map(); // playerId -> array of { t, pos, rot, vel }
-
-function pushSnapshot(id, key, value) {
-  // Only pos/rot/vel form the interpolated transform.
-  let buf = _snapshots.get(id);
-  if (!buf) {
-    buf = [];
-    _snapshots.set(id, buf);
-  }
-  const t = performance.now() / 1000;
-  // Snapshots are stored per-field but we need them time-aligned. Keep a single
-  // buffer keyed by arrival time; the latest value of each field wins within a
-  // tick. To keep brackets correct we coalesce rapid updates into one entry.
-  const last = buf[buf.length - 1];
-  if (last && t - last.t < 0.001) {
-    if (key === "pos") last.pos = value;
-    else if (key === "rot") last.rot = value;
-    else if (key === "vel") last.vel = value;
-  } else {
-    buf.push({
-      t,
-      pos: key === "pos" ? value : last?.pos,
-      rot: key === "rot" ? value : last?.rot,
-      vel: key === "vel" ? value : last?.vel,
-    });
-  }
-  const cutoff = t - SNAPSHOT_BUFFER_MS / 1000;
-  while (buf.length > 2 && buf[1].t < cutoff) buf.shift();
-}
-
-function lerp(a, b, f) {
-  return a + (b - a) * f;
-}
-
-// Returns the interpolated { pos, rot, vel } for a remote player at the render
-// time (now - INTERP_DELAY_MS). Returns null if no snapshots yet. Falls back to
-// the raw latest state if the buffer is too short so avatars still appear.
-export function getInterpolatedTransform(id) {
-  const buf = _snapshots.get(id);
+// Remote players are rendered with a simple "lerp toward latest network
+// position" model (the standard R3F multiplayer approach, e.g. Wawa Sensei /
+// balazsfarago examples): each frame the remote kinematic body is driven toward
+// the most recent position/rotation we received, smoothed by a per-frame lerp.
+// No fixed interpolation delay and no snapshot buffer — that older approach
+// rendered remote players in the PAST, which caused them to freeze until a
+// packet arrived and then teleport. Lerp-to-latest tracks tightly on localhost
+// and gracefully chases (never freezes) under real network latency.
+export function getLatestTransform(id) {
   const player = players.get(id);
-  if (!buf || buf.length === 0) {
-    if (!player) return null;
-    return {
-      pos: player.state.pos,
-      rot: player.state.rot,
-      vel: player.state.vel,
-    };
-  }
-  const renderTime = performance.now() / 1000 - INTERP_DELAY_MS / 1000;
-  if (buf.length === 1 || renderTime <= buf[0].t) {
-    const s = buf[0];
-    return { pos: s.pos, rot: s.rot, vel: s.vel };
-  }
-  if (renderTime >= buf[buf.length - 1].t) {
-    const s = buf[buf.length - 1];
-    return { pos: s.pos, rot: s.rot, vel: s.vel };
-  }
-  let a = buf[0];
-  let b = buf[buf.length - 1];
-  for (let i = 0; i < buf.length - 1; i++) {
-    if (buf[i].t <= renderTime && buf[i + 1].t >= renderTime) {
-      a = buf[i];
-      b = buf[i + 1];
-      break;
-    }
-  }
-  const span = b.t - a.t;
-  const f = span > 0 ? (renderTime - a.t) / span : 0;
-  const pa = a.pos || player?.state.pos;
-  const pb = b.pos || player?.state.pos;
-  const ra = a.rot || player?.state.rot;
-  const rb = b.rot || player?.state.rot;
-  const va = a.vel || player?.state.vel;
-  const vb = b.vel || player?.state.vel;
+  if (!player) return null;
   return {
-    pos: pa && pb ? { x: lerp(pa.x, pb.x, f), y: lerp(pa.y, pb.y, f), z: lerp(pa.z, pb.z, f) } : pa,
-    rot:
-      ra && rb
-        ? { x: lerp(ra.x, rb.x, f), y: lerp(ra.y, rb.y, f), z: lerp(ra.z, rb.z, f), w: lerp(ra.w, rb.w, f) }
-        : ra,
-    vel: va && vb ? { x: lerp(va.x, vb.x, f), y: lerp(va.y, vb.y, f), z: lerp(va.z, vb.z, f) } : va,
+    pos: player.state.pos,
+    rot: player.state.rot,
+    vel: player.state.vel,
   };
 }
 
@@ -229,6 +155,62 @@ function upsertPlayer(raw, notifyJoin = false) {
   return player;
 }
 
+// Send pos/rot/vel together as ONE throttled message so the receiver's snapshot
+// buffer stays phase-aligned (no pos-from-this-tick / rot-from-last-tick seams).
+// --- Netcode debug (test map only) -------------------------------------------
+// Tracks round-trip time and per-peer freshness so we can SEE where latency
+// lives instead of guessing. Written by setTransform/send and handleMessage,
+// read by the test overlay.
+export const netDebug = {
+  rttMs: 0,
+  sendHz: 0,
+  lastSendAt: 0,
+  peers: {}, // id -> { lastRecvAt, ageMs, recvHz }
+  renderLagMs: 0, // how far behind "now" the remote avatar is drawn
+  _sendTimes: [],
+  _recvTimes: {},
+};
+
+// Compute derived debug stats (recv Hz + age) for a peer.
+export function getPeerDebug(id) {
+  const peer = netDebug.peers[id];
+  if (!peer) return null;
+  const now = performance.now();
+  const recvs = peer._recvs || [];
+  let hz = 0;
+  if (recvs.length >= 2) {
+    const span = recvs[recvs.length - 1] - recvs[0];
+    if (span > 0) hz = ((recvs.length - 1) / span) * 1000;
+  }
+  return { ageMs: now - peer.lastRecvAt, recvHz: hz };
+}
+
+export function setRenderLag(ms) {
+  netDebug.renderLagMs = ms;
+}
+
+export function setTransform(player, transform) {
+  if (!player) return;
+  if (transform.pos) player.state.pos = transform.pos;
+  if (transform.rot) player.state.rot = transform.rot;
+  if (transform.vel) player.state.vel = transform.vel;
+  const throttleKey = `${player.id}:transform`;
+  const now = performance.now();
+  if (now - (lastSentAt.get(throttleKey) || 0) < POSITION_UPDATE_MS) return;
+  lastSentAt.set(throttleKey, now);
+  // Stamp the send so the receiver can echo it back for RTT.
+  const t = Math.round(now);
+  netDebug.lastSendAt = t;
+  netDebug._sendTimes.push(t);
+  if (netDebug._sendTimes.length > 30) netDebug._sendTimes.shift();
+  send({
+    type: "playerState",
+    id: player.id,
+    key: "transform",
+    value: { pos: transform.pos, rot: transform.rot, vel: transform.vel, _t: t },
+  });
+}
+
 function handleMessage(event) {
   const message = JSON.parse(event.data);
 
@@ -254,7 +236,6 @@ function handleMessage(event) {
     const player = players.get(message.id);
     hostId = message.hostId;
     players.delete(message.id);
-    _snapshots.delete(message.id);
     player?.onQuitCallback?.();
     emit();
     return;
@@ -263,8 +244,31 @@ function handleMessage(event) {
   if (message.type === "playerState") {
     const player = players.get(message.id);
     if (!player) return;
+    // Combined transform message: pos/rot/vel in one update. Stored as the
+    // latest network state; remote rendering lerps toward it each frame.
+    if (message.key === "transform" && message.value) {
+      const t = message.value;
+      if (t.pos) player.state.pos = t.pos;
+      if (t.rot) player.state.rot = t.rot;
+      if (t.vel) player.state.vel = t.vel;
+      // Debug: RTT + receive freshness.
+      const now = performance.now();
+      if (typeof t._t === "number") {
+        const rtt = now - t._t;
+        if (rtt >= 0 && rtt < 5000) {
+          netDebug.rttMs = netDebug.rttMs * 0.9 + rtt * 0.1;
+          const st = netDebug._sendTimes.shift();
+          void st;
+        }
+      }
+      const peer = netDebug.peers[message.id] || { lastRecvAt: 0, _recvs: [] };
+      peer.lastRecvAt = now;
+      peer._recvs.push(now);
+      if (peer._recvs.length > 30) peer._recvs.shift();
+      netDebug.peers[message.id] = peer;
+      return;
+    }
     player.state[message.key] = message.value;
-    if (TRANSIENT_KEYS.has(message.key)) pushSnapshot(message.id, message.key, message.value);
     if (!TRANSIENT_KEYS.has(message.key)) emit();
     return;
   }
