@@ -54,6 +54,34 @@ function ActionButton({ children, onClick, className = "" }) {
   );
 }
 
+function Toggle({ label, hint, value, onChange }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={value}
+      onClick={() => onChange(!value)}
+      className="control-row flex w-full items-center justify-between gap-4 rounded-[1.25rem] border border-white/[0.08] bg-black/20 px-5 py-4 text-left"
+    >
+      <span className="flex flex-col">
+        <span className="text-[18px] font-black uppercase tracking-[0.14em] text-white">{label}</span>
+        {hint && <span className="mt-1 text-[13px] leading-snug text-white/55">{hint}</span>}
+      </span>
+      <span
+        className={`relative h-8 w-14 shrink-0 rounded-full border transition ${
+          value ? "border-cyan-300/60 bg-cyan-300/30" : "border-white/15 bg-white/5"
+        }`}
+      >
+        <span
+          className={`absolute top-1/2 h-6 w-6 -translate-y-1/2 rounded-full transition-all ${
+            value ? "left-7 bg-cyan-200" : "left-1 bg-white/70"
+          }`}
+        />
+      </span>
+    </button>
+  );
+}
+
 export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false }) {
   const [tab, setTab] = useState("scene");
   const panelRef = useRef(null);
@@ -61,6 +89,7 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
   const tuning = useEcctrlTuningStore((state) => state);
   const setTuning = useEcctrlTuningStore((state) => state.setTuning);
   const [sunAngle, setSunAngle] = useMultiplayerState("sunAngle", 0.3);
+  const [raceMode, setRaceMode] = useMultiplayerState("raceMode", false);
 
   const tabs = useMemo(
     () => [
@@ -281,6 +310,12 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
           {tab === "scene" && (
             <Section title="World" eyebrow="Scene">
               <Slider label="Sun Angle" value={sunAngle} min={0} max={1} step={0.01} onChange={setSunAngle} />
+              <Toggle
+                label="Race Mode"
+                hint="Chase a trail of glowing gates planted in the ground. Drive through each one to light it green, then follow the path ahead."
+                value={raceMode}
+                onChange={setRaceMode}
+              />
             </Section>
           )}
 

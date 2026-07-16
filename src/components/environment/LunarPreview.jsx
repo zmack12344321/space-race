@@ -19,7 +19,7 @@ import { LunarRocks } from "./LunarRocks";
 import { getLunarHeight, getLunarSeed, setLunarSeed } from "../../utils/lunarHeightfield";
 import { getLobbySlotPosition } from "./lobbyLayout";
 import { useMultiplayerState } from "../../multiplayer/party";
-import { PlayerNameTag } from "./PlayerNameTag";
+import { PlayerNameTag, lobbyTagProps } from "./PlayerNameTag";
 
 const SWITCH_DURATION = 600;
 const GROUND_SIZE = 160; // detailed play-area plane (centred on the riders)
@@ -159,11 +159,10 @@ export function LunarPreview(props) {
         >
           {showUi && (
             <PlayerNameTag
-              position={[0.29, 3.07, 0]}
+              {...lobbyTagProps}
               name={player.state.name || player.state.profile.name}
               isMe={player.id === me?.id}
               onEdit={() => setNameEditing(true)}
-              editable
             />
           )}
 

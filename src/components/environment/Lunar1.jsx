@@ -1,4 +1,4 @@
-import { Billboard, Gltf, BakeShadows, Preload } from "@react-three/drei";
+import { Billboard, Gltf, BakeShadows, Preload, Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useAtom } from "jotai";
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
@@ -9,7 +9,7 @@ import { LunarEnvironment } from "./LunarEnvironment";
 import { Rider } from "../vehicles/Rider";
 import { NameEditingAtom } from "../ui/UI";
 import { getLobbySlotPosition } from "./lobbyLayout";
-import { PlayerNameTag } from "./PlayerNameTag";
+import { PlayerNameTag, lobbyTagProps } from "./PlayerNameTag";
 
 const SWITCH_DURATION = 600;
 const FROZEN_BAKE = {
@@ -108,11 +108,11 @@ export function Lobby(props) {
         >
           {showUi && (
             <PlayerNameTag
-              position={[0.29, 3.07, 0]}
+              {...lobbyTagProps}
               name={player.state.name || player.state.profile.name}
               isMe={player.id === me?.id}
               onEdit={() => setNameEditing(true)}
-              editable
+              showEditIcon={false}
             />
           )}
 
@@ -175,14 +175,16 @@ export function Lobby(props) {
                   uplight rising from the ground. Drag the group or the light. */}
               <group name="Crystal" position={[-5.67, 0, 0]}>
                 {/* Sharp white uplight rising out of the ground under the
-                    crystal — mirrors the podium's uplight ring. */}
+                      crystal — mirrors the podium's uplight ring. */}
                 <pointLight
                   name="CrystalUplight"
                   position={[5.72, 2.74, 1.95]}
                   intensity={1.54}
                   distance={4}
                   decay={2}
-                  color="#ffffff" rotation={[-2.434878148559774, 0.9054646307249138, -0.28523647598641283]} visible={true}
+                  color="#ffffff"
+                  rotation={[-2.434878148559774, 0.9054646307249138, -0.28523647598641283]}
+                  visible={true}
                 />
                 <mesh
                   name="CrystalRing"
@@ -199,24 +201,36 @@ export function Lobby(props) {
                     side={DoubleSide}
                   />
                 </mesh>
-                <mesh
-                  ref={crystalRef}
-                  name="CrystalGem"
-                  position={[-0.0300000000000002, 1.2, 0]}
-                  castShadow
-                  onClick={() => setNameEditing(true)}
-                >
-                  <octahedronGeometry args={[0.26, 0]} />
-                  <meshStandardMaterial
-                    color="#9fd8ff"
-                    emissive="#2a7fff"
-                    emissiveIntensity={0.8}
-                    toneMapped={false}
-                    roughness={0.2}
-                    metalness={0.1}
-                  />
-                </mesh>
-              </group>
+                  <group ref={crystalRef} name="CrystalGem" position={[-0.0300000000000002, 1.2, 0]}>
+                    <mesh castShadow onClick={() => setNameEditing(true)}>
+                      <octahedronGeometry args={[0.26, 0]} />
+                      <meshStandardMaterial
+                        color="#9fd8ff"
+                        emissive="#2a7fff"
+                        emissiveIntensity={0.8}
+                        toneMapped={false}
+                        roughness={0.2}
+                        metalness={0.1}
+                      />
+                    </mesh>
+                  </group>
+                  <Billboard position={[0, 2.08, 0]}>
+                    <Text
+                      font={lobbyTagProps.font}
+                      fontSize={0.38}
+                      anchorX="center"
+                      anchorY="middle"
+                      textAlign="center"
+                      outlineWidth={0.03}
+                      outlineColor="#000000"
+                      outlineOpacity={0.85}
+                      onClick={() => setNameEditing(true)}
+                    >
+                      Edit name
+                      <meshBasicMaterial color="#eaf3ff" toneMapped={false} />
+                    </Text>
+                  </Billboard>
+                </group>
             </group>
           )}
         </group>
@@ -297,27 +311,59 @@ function LightBeam({
   );
 }
 
-// Golden crown that hovers above the party leader (host) in the lobby.
+// Crown built from scratch: one solid cylinder base + flat triangle spikes.
 function Crown() {
   const ref = useRef();
+  const spikeGeometry = useMemo(() => {
+    const shape = new THREE.Shape();
+    shape.moveTo(-0.06, 0);
+    shape.lineTo(0.06, 0);
+    shape.lineTo(0, 0.22);
+    shape.closePath();
+
+    return new THREE.ExtrudeGeometry(shape, {
+      depth: 0.03,
+      bevelEnabled: false,
+      curveSegments: 1,
+    });
+  }, []);
+
   useFrame(({ clock }) => {
     if (ref.current) {
       ref.current.rotation.y = clock.getElapsedTime() * 0.8;
-      ref.current.position.y = 2.5 + Math.sin(clock.getElapsedTime() * 2) * 0.08;
+      ref.current.position.y = 1.68 + Math.sin(clock.getElapsedTime() * 2) * 0.03;
     }
   });
+
   return (
-    <group ref={ref} name="CrownModel" scale={[0.22, 0.22, 0.22]}>
-      <mesh castShadow>
-        <cylinderGeometry args={[0.55, 0.7, 0.35, 6]} />
-        <meshStandardMaterial color="#ffd34d" emissive="#a8791a" emissiveIntensity={0.4} metalness={0.9} roughness={0.25} toneMapped={false} />
+    <group ref={ref} name="CrownModel" scale={[2.0, 2.0, 2.0]}>
+      <mesh position={[0, 0.08, 0]} castShadow>
+        <cylinderGeometry args={[0.3, 0.3, 0.18, 20]} />
+        <meshStandardMaterial
+          color="#ffffff"
+          emissive="#bcd4ff"
+          emissiveIntensity={0.7}
+          toneMapped={false}
+          side={DoubleSide}
+        />
       </mesh>
+
       {[0, 1, 2, 3, 4, 5].map((i) => {
         const angle = (i / 6) * Math.PI * 2;
         return (
-          <mesh key={i} castShadow position={[Math.cos(angle) * 0.6, 0.3, Math.sin(angle) * 0.6]}>
-            <coneGeometry args={[0.12, 0.32, 4]} />
-            <meshStandardMaterial color="#ffd34d" emissive="#a8791a" emissiveIntensity={0.4} metalness={0.9} roughness={0.25} toneMapped={false} />
+          <mesh
+            key={i}
+            geometry={spikeGeometry}
+            position={[Math.cos(angle) * 0.26, 0.17, Math.sin(angle) * 0.26]}
+            rotation={[0, -angle + Math.PI / 2, 0]}
+          >
+            <meshStandardMaterial
+              color="#ffffff"
+              emissive="#bcd4ff"
+              emissiveIntensity={0.7}
+              toneMapped={false}
+              side={DoubleSide}
+            />
           </mesh>
         );
       })}

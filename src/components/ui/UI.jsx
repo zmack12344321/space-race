@@ -19,13 +19,17 @@ import { PhysicsDebugAtom, GameReadyAtom } from "./debugState";
 import { useIsTouchDevice } from "./useIsTouchDevice";
 import { getLunarSeed, setLunarSeed } from "../../utils/lunarHeightfield";
 import { useGamepadRef } from "./gamepadStore";
+import { MiniMap } from "./MiniMap";
 import { TITLE_QUIPS, LOADING_QUIPS, PLAY_QUIPS, NAME_QUIPS, RESPAWN_QUIPS, START_QUIPS, makeQuipPicker } from "../../utils/quips";
 import { BoostMeter } from "./BoostMeter";
 import { HeatMeter } from "./HeatMeter";
 import { HealthBar } from "./HealthBar";
+import { QRCodeSVG } from "qrcode.react";
+import { RoomChat } from "./RoomChat";
 
 export const NameEditingAtom = atom(false);
 export const GameMenuOpenAtom = atom(false);
+export const InviteOpenAtom = atom(false);
 
 const LOADING_STARS = [
   { cx: 6, cy: 14, r: 1.6, delay: "0s" },
@@ -343,6 +347,7 @@ export const UI = () => {
   );
 
   const [invited, setInvited] = useState(false);
+  const [inviteOpen, setInviteOpen] = useAtom(InviteOpenAtom);
 
   const pickTitleQuip = useState(() => makeQuipPicker(TITLE_QUIPS))[0];
   const pickLoadingQuip = useState(() => makeQuipPicker(LOADING_QUIPS))[0];
@@ -363,6 +368,17 @@ export const UI = () => {
     setInvited(true);
     setTimeout(() => setInvited(false), 2000);
   };
+
+  const roomLink = window.location.href;
+
+  useEffect(() => {
+    if (!inviteOpen) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") setInviteOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [inviteOpen, setInviteOpen]);
 
   const respawn = () => {
     me?.setState("_respawnAt", Date.now());
@@ -424,6 +440,18 @@ export const UI = () => {
       setMenuOpen(false);
     }
   }, [gameState, setMenuOpen]);
+
+  useEffect(() => {
+    document.body.classList.toggle("lobby-cursor", gameState === "lobby");
+    return () => {
+      document.body.classList.remove("lobby-cursor");
+    };
+  }, [gameState]);
+
+  useEffect(() => {
+    if (gameState === "game") return;
+    if (document.pointerLockElement) document.exitPointerLock();
+  }, [gameState]);
 
   useEffect(() => {
     if (gameState !== "game" || menuOpen) return;
@@ -583,7 +611,13 @@ export const UI = () => {
         <div className="fixed left-4 top-4 z-50 flex flex-col items-start gap-2">
           <button
             type="button"
-            onClick={() => setMenuOpen((value) => !value)}
+            onClick={() => {
+              setMenuOpen((value) => {
+                const next = !value;
+                if (!next) requestGamePointerLock();
+                return next;
+              });
+            }}
             aria-label={menuOpen ? "Resume" : "Pause"}
             className="ui-button pointer-events-auto px-8 py-2 bg-gray-100 text-black text-2xl rounded-md flex items-center gap-2"
           >
@@ -611,9 +645,9 @@ export const UI = () => {
       )}
       {gameState === "game" && quickTuningOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden p-4 pointer-events-none">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm pointer-events-auto" onClick={() => setQuickTuningOpen(false)} aria-hidden="true" />
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm pointer-events-auto" onClick={() => { setQuickTuningOpen(false); requestGamePointerLock(); }} aria-hidden="true" />
           <div className="relative z-10 pointer-events-auto">
-            <EcctrlTuningPanel open={quickTuningOpen} onClose={() => setQuickTuningOpen(false)} vehicleModel={me?.getState("vehicle") || "longboard"} />
+            <EcctrlTuningPanel open={quickTuningOpen} onClose={() => { setQuickTuningOpen(false); requestGamePointerLock(); }} vehicleModel={me?.getState("vehicle") || "longboard"} />
           </div>
         </div>
       )}
@@ -621,14 +655,15 @@ export const UI = () => {
       {gameState === "game" && !menuOpen && <HealthBar />}
       {gameState === "game" && !menuOpen && <BoostMeter />}
       {gameState === "game" && !menuOpen && <HeatMeter />}
+      {gameState === "game" && !loadingSlide && <MiniMap />}
       {gameState === "game" && isTouchDevice && <EcctrlTouchControls />}
+      {(gameState === "lobby" || gameState === "game") && <RoomChat />}
       {gameState === "lobby" && isHost() && (
         <div className="fixed bottom-4 right-4 z-10 w-[min(92vw,24rem)] flex flex-col gap-3 items-stretch sm:items-end">
           <button
             ref={(el) => { lobbyActionRefs.current[0] = el; }}
             className="ui-button loby-button min-h-14 w-full sm:w-auto px-8 py-4 bg-gray-100 text-black text-2xl sm:text-3xl rounded-md touch-manipulation"
             onClick={async () => {
-              requestGamePointerLock();
               setGameState("loading");
               await startMatchmaking();
               setGameState("game");
@@ -657,10 +692,9 @@ export const UI = () => {
       <div className="z-20 fixed top-4 right-4 flex flex-col items-end gap-2">
         <button
           className="ui-button lobby-button min-h-14 px-8 py-3 bg-gray-100 text-black text-xl sm:text-2xl rounded-md flex items-center gap-2 touch-manipulation"
-          onClick={invite}
-          disabled={invited}
+          onClick={() => setInviteOpen(true)}
         >
-          {invited ? "Go paste" : "Invite"}
+          Invite
         </button>
         {gameState === "game" && (
           <button
@@ -699,9 +733,11 @@ export const UI = () => {
                 if (e.key === "Enter") {
                   me?.setState("name", nameInput);
                   setNameEditing(false);
+                  requestGamePointerLock();
                 }
                 if (e.key === "Escape") {
                   setNameEditing(false);
+                  requestGamePointerLock();
                 }
               }}
             />
@@ -711,6 +747,7 @@ export const UI = () => {
                 className="ui-button flex h-14 w-14 items-center justify-center rounded-xl bg-gray-100 text-black touch-manipulation"
                 onClick={() => {
                   setNameEditing(false);
+                  requestGamePointerLock();
                 }}
               >
                 <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
@@ -723,10 +760,62 @@ export const UI = () => {
                 onClick={() => {
                   me?.setState("name", nameInput);
                   setNameEditing(false);
+                  requestGamePointerLock();
                 }}
               >
                 <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M4 12.5 L10 18.5 L20 5.5" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {inviteOpen && (
+        <div
+          className="fixed z-20 inset-0 flex items-center justify-center bg-black/40 backdrop-blur-md"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setInviteOpen(false);
+              requestGamePointerLock();
+            }
+          }}
+        >
+          <div className="w-[min(92vw,28rem)] rounded-3xl border border-white/12 bg-slate-950/90 p-7 text-center shadow-[0_30px_100px_rgba(0,0,0,0.6)] backdrop-blur-xl">
+            <div className="text-[clamp(1.6rem,5vw,2.4rem)] font-black uppercase tracking-[0.22em] text-white drop-shadow-[0_0_24px_rgba(103,232,249,0.35)]">
+              Invite
+            </div>
+            <div className="mt-1 text-[13px] uppercase tracking-[0.22em] text-cyan-300/80">
+              Share the link or scan to join
+            </div>
+            <div className="mt-5 flex items-stretch gap-2">
+              <input
+                readOnly
+                value={roomLink}
+                onFocus={(e) => e.currentTarget.select()}
+                className="w-full min-w-0 rounded-xl border border-white/15 bg-black/40 px-4 py-3 text-center text-base font-bold tracking-wide text-white outline-none"
+              />
+              <button
+                aria-label="Copy link"
+                onClick={invite}
+                className="ui-button flex h-auto shrink-0 items-center justify-center rounded-xl bg-gray-100 px-5 text-black text-lg font-black uppercase tracking-[0.12em] touch-manipulation"
+              >
+                {invited ? "Copied!" : "Copy"}
+              </button>
+            </div>
+            <div className="mt-6 flex justify-center">
+              <div className="rounded-2xl border border-white/12 bg-white p-3 shadow-[0_0_40px_rgba(103,232,249,0.18)]">
+                <QRCodeSVG value={roomLink} size={168} bgColor="#ffffff" fgColor="#020617" level="M" />
+              </div>
+            </div>
+            <div className="mt-6 flex items-center justify-center">
+              <button
+                aria-label="Close"
+                className="ui-button flex h-14 w-14 items-center justify-center rounded-xl bg-gray-100 text-black touch-manipulation"
+                onClick={() => { setInviteOpen(false); requestGamePointerLock(); }}
+              >
+                <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                  <path d="M6 6 L18 18 M18 6 L6 18" />
                 </svg>
               </button>
             </div>

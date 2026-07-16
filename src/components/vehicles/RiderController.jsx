@@ -30,7 +30,7 @@ import { ECCTRL_VEHICLE_TUNING_PRESETS, getEcctrlTuningPreset, useEcctrlTuningSt
 import { GameMenuOpenAtom } from "../ui/UI";
 import { GameReadyAtom } from "../ui/debugState";
 import { useSetAtom } from "jotai";
-import { PlayerNameTag } from "../environment/PlayerNameTag";
+import { PlayerNameTag, gameTagProps } from "../environment/PlayerNameTag";
 import { useGamepadRef, getGamepadState, TRIGGER_DEADZONE } from "../ui/gamepadStore";
 import { setBoost } from "../ui/boostStore";
 import { usePlayerSettings } from "../ui/playerSettingsStore";
@@ -658,11 +658,11 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
         beamSlot.current.active = false;
         beamSlot.current.isBeam = false;
         beamSlot.current = null;
-        send({ type: "beam", ownerId: me.id, pos: pack(md.muzzle), dir: pack(md.dir), beamLength: BEAM_LENGTH, active: false });
+          send({ type: "beam", ownerId: me.id, pos: pack(md.muzzle), dir: pack(md.dir), beamLength: BEAM_LENGTH, active: false });
       }
-
-      useHeatStore.getState().set({ heat: heat.current / OVERHEAT_TIME, overheated: overheated.current });
     }
+
+    useHeatStore.getState().set({ heat: heat.current / OVERHEAT_TIME, overheated: overheated.current });
     const joystickL = mergedJoystickInput(controls, ecctrlJoystick.current);
     const gamepadForward = pad.axes.rt > 0.12;
     const gamepadBack = pad.axes.lt > 0.12;
@@ -967,11 +967,9 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
       >
         {isDrone ? <DroneControllerBody drone={tuning.drone} paused={!isLocal || !isSpawned || menuOpen} boostMultiplier={boostMultiplier} /> : <CarControllerBody car={tuning.board} paused={!isLocal || !isSpawned || menuOpen} />}
         <PlayerNameTag
+          {...gameTagProps}
           name={state.state.name || state.state.profile.name}
           isMe={isLocal}
-          hideSelf
-          position={[0, 2.45, 0]}
-          fontSize={0.26}
         />
         <group position={[0, -0.25, 0]}>
           <Rider model={vehicleModel} scale={0.6} preview={false} />

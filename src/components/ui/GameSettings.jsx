@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useGamepadRef } from "./gamepadStore";
-import { useGameSettings, DEFAULT_GAME_SETTINGS } from "./gameSettingsStore";
+import { useGameSettings } from "./gameSettingsStore";
 
 const STICK_NAV = 0.55;
 const NAV_REPEAT = 220;
@@ -68,20 +68,72 @@ function SettingSlider({ label, value, min, max, step, onChange, suffix = "" }) 
 
 function SettingSelect({ label, value, options, onChange }) {
   return (
-    <label className="control-row flex flex-col gap-2 rounded-[1.25rem] border border-white/[0.08] bg-black/20 px-5 py-4">
+    <div className="control-row flex flex-col gap-2 rounded-[1.25rem] border border-white/[0.08] bg-black/20 px-5 py-4">
       <div className="text-[18px] font-black uppercase tracking-[0.14em] text-white">{label}</div>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="ui-button rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-[15px] font-black uppercase tracking-[0.12em] text-white outline-none transition hover:bg-white/10"
+      <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-[15px] font-black uppercase tracking-[0.12em] text-white/70">
+        {options.find((opt) => opt.key === value)?.label ?? value}
+      </div>
+    </div>
+  );
+}
+
+function StyledDropdown({ label, value, options, onChange }) {
+  const rootRef = useRef(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const onDocPointerDown = (event) => {
+      if (!rootRef.current?.contains(event.target)) setOpen(false);
+    };
+    const onDocKeyDown = (event) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+
+    document.addEventListener("pointerdown", onDocPointerDown);
+    document.addEventListener("keydown", onDocKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onDocPointerDown);
+      document.removeEventListener("keydown", onDocKeyDown);
+    };
+  }, []);
+
+  const current = options.find((opt) => opt.key === value) ?? options[0];
+
+  return (
+    <div ref={rootRef} className="control-row relative flex flex-col gap-2 rounded-[1.25rem] border border-white/[0.08] bg-black/20 px-5 py-4">
+      <div className="text-[18px] font-black uppercase tracking-[0.14em] text-white">{label}</div>
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="ui-button flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-[15px] font-black uppercase tracking-[0.12em] text-white transition hover:bg-white/10"
       >
-        {options.map((opt) => (
-          <option key={opt.key} value={opt.key}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    </label>
+        <span>{current?.label ?? value}</span>
+        <span className={`transition-transform ${open ? "rotate-180" : ""}`}>⌄</span>
+      </button>
+      {open && (
+        <div role="listbox" className="absolute left-5 right-5 top-[calc(100%-0.25rem)] z-50 mt-2 overflow-hidden rounded-2xl border border-white/10 bg-[#050816] shadow-[0_18px_50px_rgba(0,0,0,0.55)]">
+          {options.map((opt) => (
+            <button
+              key={opt.key}
+              type="button"
+              role="option"
+              aria-selected={opt.key === value}
+              onClick={() => {
+                onChange(opt.key);
+                setOpen(false);
+              }}
+              className={`block w-full px-4 py-3 text-left text-[14px] font-black uppercase tracking-[0.12em] transition ${
+                opt.key === value ? "bg-cyan-300/15 text-cyan-200" : "text-white/75 hover:bg-white/8 hover:text-white"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -267,7 +319,7 @@ export function GameSettings({ onBack }) {
               </div>
               <p className="mt-3 text-[12px] uppercase tracking-[0.12em] text-white/45">Manual changes below switch this to custom.</p>
             </div>
-            <SettingSelect
+            <StyledDropdown
               label="Anti-Aliasing"
               value={settings.aaMode}
               options={AA_OPTIONS}

@@ -12,6 +12,7 @@ import { Skatepark } from "../environment/Skatepark";
 import { LunarSky, LunarTerrain } from "../environment/LunarTerrain";
 import { LunarRocks } from "../environment/LunarRocks";
 import { LunarEnvironment } from "../environment/LunarEnvironment";
+import { RaceCourse } from "../environment/RaceCourse";
 import { getLunarHeight, getLunarSpawnCenter } from "../../utils/lunarHeightfield";
 import { useMultiplayerState } from "../../multiplayer/party";
 import { useFrame, useThree } from "@react-three/fiber";
@@ -57,6 +58,7 @@ export const Game = ({ level = "lunar", physicsDebug = false, debugMode = false,
   const [players, setPlayers] = useState([]);
   const paused = useAtomValue(GameMenuOpenAtom);
   const [sunAngle] = useMultiplayerState("sunAngle", 0.3);
+  const [raceMode] = useMultiplayerState("raceMode", false);
   const mountainsRef = useRef();
   const lightRef = useRef();
   const lightTargetRef = useRef(new THREE.Object3D());
@@ -126,7 +128,8 @@ export const Game = ({ level = "lunar", physicsDebug = false, debugMode = false,
       <Physics gravity={[0, 0, 0]} debug={physicsDebug} paused={paused}>
         <GravitySetup />
         {level === "lunar" && <LunarTerrain />}
-        {level === "lunar" && <LunarRocks />}
+        {level === "lunar" && <LunarRocks clearRadius={raceMode ? 18 : 0} />}
+        {level === "lunar" && <RaceCourse seed={1337} enabled={raceMode} />}
         {players.map(({ state, controls }) => (
           <RiderController
             key={state.id}

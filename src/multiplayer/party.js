@@ -148,6 +148,8 @@ let localPlayer = null;
 let hostId = null;
 let roomState = { ...DEFAULT_ROOM_STATE };
 let players = new Map();
+let chat = [];
+let chatNotice = null;
 let version = 0;
 let lastSentAt = new Map();
 
@@ -180,6 +182,17 @@ function subscribe(listener) {
 
 function snapshot() {
   return version;
+}
+
+function setChatNotice(value) {
+  chatNotice = value;
+  emit();
+}
+
+export function clearChatNotice() {
+  if (!chatNotice) return;
+  chatNotice = null;
+  emit();
 }
 
 let sendQueue = [];
@@ -215,9 +228,11 @@ function getOrCreateRoomId() {
 }
 
 function getHost() {
+  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+    return "localhost:1999";
+  }
   const configuredHost = import.meta.env.VITE_PARTYKIT_HOST;
   if (configuredHost) return configuredHost.replace(/^https?:\/\//, "");
-  if (window.location.hostname === "localhost") return "localhost:1999";
   return window.location.host;
 }
 
@@ -328,6 +343,7 @@ function handleMessage(event) {
     if (typeof message.seed === "number") setLunarSeed(message.seed, { persist: false });
     roomState = { ...DEFAULT_ROOM_STATE, ...message.roomState };
     hostId = message.hostId;
+    chat = Array.isArray(message.chat) ? message.chat.slice(-50) : [];
     players = new Map();
     message.players.forEach((player) => upsertPlayer(player));
     if (localPlayer) upsertPlayer(localPlayer, true);
@@ -398,6 +414,18 @@ function handleMessage(event) {
       setLunarSeed(message.value, { persist: false });
     }
     emit();
+  }
+
+  if (message.type === "chat") {
+    if (!message.msg) return;
+    chat = [...chat, message.msg].slice(-50);
+    emit();
+    return;
+  }
+
+  if (message.type === "chatRateLimited") {
+    setChatNotice("Too fast. Slow down.");
+    return;
   }
 
   if (message.type === "laser") {
@@ -512,6 +540,8 @@ export function leaveRoom() {
   }
   players = new Map();
   roomState = { ...DEFAULT_ROOM_STATE };
+  chat = [];
+  chatNotice = null;
   hostId = null;
   emit();
 }
@@ -572,6 +602,22 @@ export function usePlayerState(player, key) {
       player?.setState(key, value);
     },
   ];
+}
+
+export function useChat() {
+  useSyncExternalStore(subscribe, snapshot, snapshot);
+  return chat;
+}
+
+export function useChatNotice() {
+  useSyncExternalStore(subscribe, snapshot, snapshot);
+  return chatNotice;
+}
+
+export function sendChat(text) {
+  const message = String(text ?? "").trim();
+  if (!message || !localPlayer) return;
+  send({ type: "chat", id: localPlayer.id, text: message.slice(0, 200) });
 }
 
 export function onPlayerJoin(callback) {

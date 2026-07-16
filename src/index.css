@@ -22,6 +22,11 @@ body {
   user-select: none;
 }
 
+body.lobby-cursor,
+body.lobby-cursor * {
+  cursor: url("/images/lobby-cursor.svg") 16 16, auto;
+}
+
 #root {
   width: 100%;
   height: 100%;

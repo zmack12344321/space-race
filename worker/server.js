@@ -1,4 +1,27 @@
 import { routePartykitRequest, Server } from "partyserver";
+import {
+  RegExpMatcher,
+  TextCensor,
+  asteriskCensorStrategy,
+  englishDataset,
+  englishRecommendedTransformers,
+  keepStartCensorStrategy,
+} from "obscenity";
+
+const chatMatcher = new RegExpMatcher({
+  ...englishDataset.build(),
+  ...englishRecommendedTransformers,
+});
+
+const chatCensor = new TextCensor().setStrategy(
+  keepStartCensorStrategy(asteriskCensorStrategy())
+);
+
+const CHAT_HISTORY_LIMIT = 50;
+const CHAT_MESSAGE_LIMIT = 200;
+const CHAT_WINDOW_MS = 3000;
+const CHAT_WINDOW_MESSAGES = 5;
+const CHAT_BAN_MS = 10000;
 
 function hashSeed(str) {
   let h = 2166136261;
@@ -14,10 +37,17 @@ const HOST_GRACE_MS = 3000;
 export class SpaceRaceServer extends Server {
   players = new Map();
   roomState = { gameState: "title" };
+  chat = [];
   hostId = null;
   seed = null;
   _loaded = false;
   _hostGrace = null;
+  _chatLimits = new Map();
+
+  constructor(room) {
+    super(room);
+    this.room = room;
+  }
 
   async _ensureLoaded() {
     if (this._loaded) return;
@@ -56,6 +86,7 @@ export class SpaceRaceServer extends Server {
         type: "snapshot",
         players: Array.from(this.players.values()),
         roomState: this.roomState,
+        chat: this.chat,
         hostId: this.hostId,
         seed: this.seed,
       })
@@ -81,7 +112,7 @@ export class SpaceRaceServer extends Server {
             pos: event.pos || existing.state.pos,
             rot: event.rot || existing.state.rot,
           };
-          connection.setState({ playerId: event.id });
+          connection.setState({ ...(connection.state ?? {}), playerId: event.id });
           this.broadcastJson({ type: "playerJoined", player: existing, hostId: this.hostId, seed: this.seed });
           await this._persist();
           return;
@@ -101,10 +132,44 @@ export class SpaceRaceServer extends Server {
           },
         };
         this.players.set(event.id, player);
-        connection.setState({ playerId: event.id });
+        connection.setState({ ...(connection.state ?? {}), playerId: event.id });
         if (!this.hostId) this.hostId = event.id;
         this.broadcastJson({ type: "playerJoined", player, hostId: this.hostId, seed: this.seed });
         await this._persist();
+        return;
+      }
+
+      if (event.type === "chat") {
+        const player = this.players.get(event.id);
+        if (!player) return;
+
+        if (this.isChatRateLimited(event.id)) {
+          connection.send(JSON.stringify({ type: "chatRateLimited" }));
+          return;
+        }
+
+        let text = String(event.text ?? "").trim().slice(0, CHAT_MESSAGE_LIMIT);
+        if (!text) return;
+
+        const matches = chatMatcher.getAllMatches(text, true);
+        if (matches.length) {
+          text = chatCensor.applyTo(text, matches);
+        }
+
+        const msg = {
+          id: crypto.randomUUID(),
+          playerId: event.id,
+          name: player.state?.name || "Rider",
+          text,
+          ts: Date.now(),
+        };
+
+        this.chat.push(msg);
+        if (this.chat.length > CHAT_HISTORY_LIMIT) {
+          this.chat.splice(0, this.chat.length - CHAT_HISTORY_LIMIT);
+        }
+
+        this.broadcastJson({ type: "chat", msg });
         return;
       }
 
@@ -187,6 +252,10 @@ export class SpaceRaceServer extends Server {
     const player = playerId ? this.players.get(playerId) : null;
     if (!player) return;
 
+    if (playerId) {
+      this._chatLimits.delete(playerId);
+    }
+
     const wasHost = this.hostId === playerId;
 
     if (wasHost) {
@@ -217,6 +286,36 @@ export class SpaceRaceServer extends Server {
 
   broadcastJson(event) {
     this.broadcast(JSON.stringify(event));
+  }
+
+  isChatRateLimited(playerId) {
+    const now = Date.now();
+    const current = this._chatLimits.get(playerId) || {
+      timestamps: [],
+      blockedUntil: 0,
+      violations: 0,
+    };
+
+    if (current.blockedUntil && now < current.blockedUntil) {
+      return true;
+    }
+
+    const timestamps = current.timestamps.filter((timestamp) => now - timestamp <= CHAT_WINDOW_MS);
+    timestamps.push(now);
+
+    if (timestamps.length > CHAT_WINDOW_MESSAGES) {
+      current.violations += 1;
+      current.blockedUntil = now + CHAT_BAN_MS * Math.min(current.violations, 3);
+      current.timestamps = timestamps;
+      this._chatLimits.set(playerId, current);
+      return true;
+    }
+
+    current.timestamps = timestamps;
+    current.blockedUntil = 0;
+    current.violations = 0;
+    this._chatLimits.set(playerId, current);
+    return false;
   }
 }
 

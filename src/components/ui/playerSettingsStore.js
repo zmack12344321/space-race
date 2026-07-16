@@ -3,7 +3,7 @@ import { persist } from "zustand/middleware";
 
 export const DEFAULT_PLAYER_SETTINGS = {
   lookSensitivity: 1,
-  invertLookY: true,
+  invertLookY: false,
   invertLookX: false,
   invertSteering: false,
 };

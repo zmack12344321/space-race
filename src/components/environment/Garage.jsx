@@ -6,7 +6,7 @@ import { MathUtils } from "three";
 import { audios, playAudio } from "../../utils/AudioManager";
 import { Rider } from "../vehicles/Rider";
 import { NameEditingAtom } from "../ui/UI";
-import { PlayerNameTag } from "./PlayerNameTag";
+import { PlayerNameTag, lobbyTagProps } from "./PlayerNameTag";
 
 const CAR_SPACING = 2.5;
 const SWITCH_DURATION = 600;
@@ -102,11 +102,11 @@ export function Garage({
         >
           {showUi && (
             <PlayerNameTag
+              {...lobbyTagProps}
               position={[0.86, 2.34, 0]}
               name={player.state.name || player.state.profile.name}
               isMe={player.id === me?.id}
               onEdit={() => setNameEditing(true)}
-              editable
             />
           )}
 

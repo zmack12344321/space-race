@@ -1,3 +1,27 @@
+import {
+  RegExpMatcher,
+  TextCensor,
+  asteriskCensorStrategy,
+  englishDataset,
+  englishRecommendedTransformers,
+  keepStartCensorStrategy,
+} from "obscenity";
+
+const chatMatcher = new RegExpMatcher({
+  ...englishDataset.build(),
+  ...englishRecommendedTransformers,
+});
+
+const chatCensor = new TextCensor().setStrategy(
+  keepStartCensorStrategy(asteriskCensorStrategy())
+);
+
+const CHAT_HISTORY_LIMIT = 50;
+const CHAT_MESSAGE_LIMIT = 200;
+const CHAT_WINDOW_MS = 3000;
+const CHAT_WINDOW_MESSAGES = 5;
+const CHAT_BAN_MS = 10000;
+
 function hashSeed(str) {
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) {
@@ -14,10 +38,12 @@ export default class Server {
     this.room = room;
     this.players = new Map();
     this.roomState = { gameState: "title" };
+    this.chat = [];
     this.hostId = null;
     this.seed = hashSeed(room?.id || "space-race");
     this._loaded = false;
     this._hostGrace = null;
+    this._chatLimits = new Map();
   }
 
   async _ensureLoaded() {
@@ -56,6 +82,7 @@ export default class Server {
         type: "snapshot",
         players: Array.from(this.players.values()),
         roomState: this.roomState,
+        chat: this.chat,
         hostId: this.hostId,
         seed: this.seed,
       })
@@ -70,9 +97,9 @@ export default class Server {
       return;
     }
 
-    if (event.type === "join") {
-      const existing = this.players.get(event.id);
-      if (existing && existing.disconnected) {
+      if (event.type === "join") {
+        const existing = this.players.get(event.id);
+        if (existing && existing.disconnected) {
         clearTimeout(this._hostGrace);
         existing.disconnected = false;
         existing.state = {
@@ -82,11 +109,11 @@ export default class Server {
           pos: event.pos || existing.state.pos,
           rot: event.rot || existing.state.rot,
         };
-        connection.setState({ playerId: event.id });
-        this.broadcast({ type: "playerJoined", player: existing, hostId: this.hostId, seed: this.seed });
-        this._persist();
-        return;
-      }
+          connection.setState({ ...(connection.state ?? {}), playerId: event.id });
+          this.broadcast({ type: "playerJoined", player: existing, hostId: this.hostId, seed: this.seed });
+          this._persist();
+          return;
+        }
 
       const slot = this.players.size;
       const player = {
@@ -102,12 +129,46 @@ export default class Server {
         },
       };
       this.players.set(event.id, player);
-      connection.setState({ playerId: event.id });
-      if (!this.hostId) this.hostId = event.id;
-      this.broadcast({ type: "playerJoined", player, hostId: this.hostId, seed: this.seed });
-      this._persist();
-      return;
-    }
+        connection.setState({ ...(connection.state ?? {}), playerId: event.id });
+        if (!this.hostId) this.hostId = event.id;
+        this.broadcast({ type: "playerJoined", player, hostId: this.hostId, seed: this.seed });
+        this._persist();
+        return;
+      }
+
+      if (event.type === "chat") {
+        const player = this.players.get(event.id);
+        if (!player) return;
+
+        if (this.isChatRateLimited(event.id)) {
+          connection.send(JSON.stringify({ type: "chatRateLimited" }));
+          return;
+        }
+
+        let text = String(event.text ?? "").trim().slice(0, CHAT_MESSAGE_LIMIT);
+        if (!text) return;
+
+        const matches = chatMatcher.getAllMatches(text, true);
+        if (matches.length) {
+          text = chatCensor.applyTo(text, matches);
+        }
+
+        const msg = {
+          id: crypto.randomUUID(),
+          playerId: event.id,
+          name: player.state?.name || "Rider",
+          text,
+          ts: Date.now(),
+        };
+
+        this.chat.push(msg);
+        if (this.chat.length > CHAT_HISTORY_LIMIT) {
+          this.chat.splice(0, this.chat.length - CHAT_HISTORY_LIMIT);
+        }
+
+        this.broadcast({ type: "chat", msg });
+        return;
+      }
 
     if (event.type === "playerState") {
       const player = this.players.get(event.id);
@@ -176,6 +237,10 @@ export default class Server {
     const player = playerId ? this.players.get(playerId) : null;
     if (!player) return;
 
+    if (playerId) {
+      this._chatLimits.delete(playerId);
+    }
+
     const wasHost = this.hostId === playerId;
 
     if (wasHost) {
@@ -204,5 +269,35 @@ export default class Server {
 
   broadcast(event) {
     this.room.broadcast(JSON.stringify(event));
+  }
+
+  isChatRateLimited(playerId) {
+    const now = Date.now();
+    const current = this._chatLimits.get(playerId) || {
+      timestamps: [],
+      blockedUntil: 0,
+      violations: 0,
+    };
+
+    if (current.blockedUntil && now < current.blockedUntil) {
+      return true;
+    }
+
+    const timestamps = current.timestamps.filter((timestamp) => now - timestamp <= CHAT_WINDOW_MS);
+    timestamps.push(now);
+
+    if (timestamps.length > CHAT_WINDOW_MESSAGES) {
+      current.violations += 1;
+      current.blockedUntil = now + CHAT_BAN_MS * Math.min(current.violations, 3);
+      current.timestamps = timestamps;
+      this._chatLimits.set(playerId, current);
+      return true;
+    }
+
+    current.timestamps = timestamps;
+    current.blockedUntil = 0;
+    current.violations = 0;
+    this._chatLimits.set(playerId, current);
+    return false;
   }
 }
