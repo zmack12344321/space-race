@@ -211,7 +211,7 @@ export function getLunarSpawnCenter(seed = SEED) {
   return { x: hx, z: hz };
 }
 
-function nearestRockDistance(x, z, seed) {
+export function nearestRockDistance(x, z, seed) {
   const chunkSize = 64;
   const cx = Math.floor(x / chunkSize);
   const cz = Math.floor(z / chunkSize);
@@ -236,7 +236,7 @@ function nearestRockDistance(x, z, seed) {
   return best;
 }
 
-function scoreSpawnPoint(x, z, groundHeight, lastSpawn, seed) {
+export function scoreSpawnPoint(x, z, groundHeight, lastSpawn, seed) {
   const h = groundHeight(x, z);
   const samples = [
     [8, 0],

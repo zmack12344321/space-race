@@ -130,7 +130,7 @@ function computeField(cx, cz, seed, radius = VISUAL_RADIUS, clearRadius = 0) {
   return { far, near };
 }
 
-export function LunarRocks({ isStatic = false, staticRadius = 2, seed, clearRadius = 0 }) {
+export function LunarRocks({ isStatic = false, staticRadius = 2, seed, clearRadius = 0, visualRadiusBoost = 0 }) {
   const camera = useThree((state) => state.camera);
   const cameraWorldPosition = useRef(new THREE.Vector3());
   const [center, setCenter] = useState(() => ({
@@ -159,8 +159,8 @@ export function LunarRocks({ isStatic = false, staticRadius = 2, seed, clearRadi
   const { far, near } = useMemo(() => {
     const cx = isStatic ? 0 : center.x;
     const cz = isStatic ? 0 : center.z;
-    return computeField(cx, cz, seed, isStatic ? staticRadius : VISUAL_RADIUS, clearRadius);
-  }, [center, isStatic, seed, clearRadius, staticRadius]);
+    return computeField(cx, cz, seed, (isStatic ? staticRadius : VISUAL_RADIUS) + visualRadiusBoost, clearRadius);
+  }, [center, isStatic, seed, clearRadius, staticRadius, visualRadiusBoost]);
 
   // Push far-rock placements into one InstancedMesh per type (1 draw call each).
   useEffect(() => {

@@ -18,6 +18,7 @@ import { useMultiplayerState } from "../../multiplayer/party";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useAtomValue } from "jotai";
 import { GameMenuOpenAtom } from "../ui/UI";
+import { useGameSettings } from "../ui/gameSettingsStore";
 
 
 function GravitySetup() {
@@ -33,11 +34,23 @@ function GravitySetup() {
 
 // Minimal flat-plane test arena: two players spawn facing each other 10m apart
 // so we can isolate netcode/lag/knockback without the full game world.
-function TestArena() {
+function TestArena({ shadowDistance }) {
+  const shadowHalf = shadowDistance / 2;
   return (
     <>
       <ambientLight intensity={0.6} />
-      <directionalLight position={[10, 20, 10]} intensity={2.5} castShadow shadow-mapSize={[1024, 1024]} />
+      <directionalLight
+        position={[10, 20, 10]}
+        intensity={2.5}
+        castShadow
+        shadow-mapSize={[1024, 1024]}
+        shadow-camera-left={-shadowHalf}
+        shadow-camera-right={shadowHalf}
+        shadow-camera-top={shadowHalf}
+        shadow-camera-bottom={-shadowHalf}
+        shadow-camera-near={0.1}
+        shadow-camera-far={shadowDistance * 6}
+      />
       <pointLight position={[0, 6, 0]} intensity={0.6} distance={40} />
       <color attach="background" args={["#0a0e1a"]} />
       <RigidBody type="fixed" colliders="cuboid">
@@ -59,6 +72,8 @@ export const Game = ({ level = "lunar", physicsDebug = false, debugMode = false,
   const paused = useAtomValue(GameMenuOpenAtom);
   const [sunAngle] = useMultiplayerState("sunAngle", 0.3);
   const [raceMode] = useMultiplayerState("raceMode", false);
+  const renderDistance = useGameSettings((state) => state.renderDistance);
+  const shadowDistance = useGameSettings((state) => state.shadowDistance);
   const mountainsRef = useRef();
   const lightRef = useRef();
   const lightTargetRef = useRef(new THREE.Object3D());
@@ -121,14 +136,19 @@ export const Game = ({ level = "lunar", physicsDebug = false, debugMode = false,
             shadow-bias={-0.0005}
             shadow-normalBias={0.02}
             shadow-mapSize={[1024, 1024]}
-            shadow-camera-left={-60}
+            shadow-camera-left={-shadowDistance / 2}
+            shadow-camera-right={shadowDistance / 2}
+            shadow-camera-top={shadowDistance / 2}
+            shadow-camera-bottom={-shadowDistance / 2}
+            shadow-camera-near={0.1}
+            shadow-camera-far={shadowDistance * 6}
           />
         </>
       )}
       <Physics gravity={[0, 0, 0]} debug={physicsDebug} paused={paused}>
         <GravitySetup />
-        {level === "lunar" && <LunarTerrain />}
-        {level === "lunar" && <LunarRocks clearRadius={raceMode ? 18 : 0} />}
+        {level === "lunar" && <LunarTerrain visualRadiusBoost={Math.max(0, renderDistance - 9)} />}
+        {level === "lunar" && <LunarRocks clearRadius={raceMode ? 18 : 0} visualRadiusBoost={Math.max(0, renderDistance - 9)} />}
         {level === "lunar" && <RaceCourse seed={1337} enabled={raceMode} />}
         {players.map(({ state, controls }) => (
           <RiderController
@@ -143,7 +163,7 @@ export const Game = ({ level = "lunar", physicsDebug = false, debugMode = false,
         {level === "lunar" ? null : level === "skatepark" ? (
           <Skatepark />
         ) : level === "test" ? (
-          <TestArena />
+          <TestArena shadowDistance={shadowDistance} />
         ) : (
           <>
             <RigidBody type="fixed" colliders="hull" rotation={[0, Math.PI, 0]}>

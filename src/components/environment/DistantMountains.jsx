@@ -123,13 +123,15 @@ export function DistantMountains({
   color = "#0e1626",
   position = [0, 0, 0],
 } = {}) {
+  const mountainPush = 180;
+
   const bands = useMemo(
     () => [
       // Far — closest to fog color so it dissolves into the horizon
       // instead of reading as a hard wall. Short + low contrast, but tall
       // enough to poke above the fog line when the camera rises.
       {
-        radius: radius + 360,
+        radius: radius + 360 + mountainPush,
         height: height * 1.3,
         segments: Math.round(segments * 0.55),
         strips: 12,
@@ -140,7 +142,7 @@ export function DistantMountains({
       },
       // Far-mid.
       {
-        radius: radius + 270,
+        radius: radius + 270 + mountainPush,
         height: height * 1.08,
         segments: Math.round(segments * 0.7),
         strips: 11,
@@ -151,7 +153,7 @@ export function DistantMountains({
       },
       // Mid.
       {
-        radius: radius + 185,
+        radius: radius + 185 + mountainPush,
         height: height * 1.04,
         segments: Math.round(segments * 0.85),
         strips: 10,
@@ -162,7 +164,7 @@ export function DistantMountains({
       },
       // Near-mid — bridges the gap to the foreground.
       {
-        radius: radius + 100,
+        radius: radius + 100 + mountainPush,
         height: height * 1.1,
         segments: Math.round(segments * 1.05),
         strips: 9,
@@ -175,7 +177,7 @@ export function DistantMountains({
       // stream radius (~576u) so rocks never sit in front of the ridges.
       // Darkest + tallest + most defined; base melts into fog like terrain.
       {
-        radius: radius + 30,
+        radius: radius + 30 + mountainPush,
         height: height * 1.25,
         segments: Math.round(segments * 1.35),
         strips: 12,

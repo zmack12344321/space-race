@@ -66,6 +66,27 @@ function SettingSlider({ label, value, min, max, step, onChange, suffix = "" }) 
   );
 }
 
+function SettingSliderWithHint({ label, value, min, max, step, onChange, hint }) {
+  return (
+    <label className="control-row flex flex-col gap-2 rounded-[1.25rem] border border-white/[0.08] bg-black/20 px-5 py-4">
+      <div className="flex items-center justify-between gap-3 text-[18px] font-black uppercase tracking-[0.14em] text-white">
+        <span>{label}</span>
+        <span className="font-mono text-[13px] text-white/75">{Number(value).toFixed(0)}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="game-slider w-full cursor-pointer"
+      />
+      {hint && <div className="text-[12px] uppercase tracking-[0.12em] text-white/45">{hint}</div>}
+    </label>
+  );
+}
+
 function SettingSelect({ label, value, options, onChange }) {
   return (
     <div className="control-row flex flex-col gap-2 rounded-[1.25rem] border border-white/[0.08] bg-black/20 px-5 py-4">
@@ -295,8 +316,8 @@ export function GameSettings({ onBack }) {
         </button>
       </div>
 
-      <div className="mt-5 grid flex-1 gap-4 overflow-hidden lg:grid-cols-2">
-        <div className="flex flex-col overflow-y-auto rounded-[1.5rem] border border-cyan-300/30 bg-white/[0.04] p-5 game-menu-scroll">
+      <div className="mt-5 grid flex-1 min-h-0 gap-4 overflow-hidden xl:grid-cols-[1.15fr_0.85fr]">
+        <div className="flex min-h-0 flex-col overflow-y-auto rounded-[1.5rem] border border-cyan-300/30 bg-white/[0.04] p-5 game-menu-scroll">
           <div className="mb-4 text-[18px] font-bold uppercase tracking-[0.22em] text-cyan-300/90">Render</div>
           <div className="space-y-2.5">
             <div className="control-row rounded-[1.25rem] border border-white/[0.08] bg-black/20 px-5 py-4">
@@ -348,6 +369,24 @@ export function GameSettings({ onBack }) {
               </div>
             </div>
             <SettingToggle label="Adaptive DPR" value={settings.adaptiveDpr} onChange={(v) => { markCustomRender(); setSetting("adaptiveDpr", v); }} />
+            <SettingSliderWithHint
+              label="Render Distance"
+              value={settings.renderDistance}
+              min={9}
+              max={20}
+              step={1}
+              onChange={(v) => { markCustomRender(); setSetting("renderDistance", v); }}
+              hint="Raises how far the lunar terrain and rocks stream."
+            />
+            <SettingSliderWithHint
+              label="Shadow Distance"
+              value={settings.shadowDistance}
+              min={350}
+              max={1200}
+              step={25}
+              onChange={(v) => { markCustomRender(); setSetting("shadowDistance", v); }}
+              hint="Raises how far dynamic shadows stay visible before they fade out."
+            />
             <div className="control-row rounded-[1.25rem] border border-white/[0.08] bg-black/20 px-5 py-4">
               <div className="mb-3 text-[18px] font-black uppercase tracking-[0.14em] text-white">Stars</div>
               <div className="grid grid-cols-3 gap-2">
@@ -370,9 +409,18 @@ export function GameSettings({ onBack }) {
             <div className="mt-2 text-[12px] uppercase tracking-[0.16em] text-white/40">
               Current preset: <span className="text-white/85">{settings.renderPreset}</span>
             </div>
-            <div className="pt-2 text-[18px] font-bold uppercase tracking-[0.22em] text-white/55">Audio</div>
+          </div>
+        </div>
+
+        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-5 game-menu-scroll">
+          <div className="text-[18px] font-bold uppercase tracking-[0.22em] text-white/55">Audio</div>
+          <div className="space-y-2.5">
             <SettingSlider label="Master Volume" value={settings.masterVolume} min={0} max={1} step={0.01} onChange={(v) => setSetting("masterVolume", v)} />
             <SettingSlider label="SFX Volume" value={settings.sfxVolume} min={0} max={1} step={0.01} onChange={(v) => setSetting("sfxVolume", v)} />
+          </div>
+
+          <div className="pt-2 text-[18px] font-bold uppercase tracking-[0.22em] text-white/55">Display</div>
+          <div className="space-y-2.5">
             <div className="control-row flex items-center justify-between gap-3 rounded-[1.25rem] border border-white/[0.08] bg-black/20 px-5 py-4">
               <span className="text-[18px] font-black uppercase tracking-[0.14em] text-white">Fullscreen</span>
               <button
@@ -394,22 +442,6 @@ export function GameSettings({ onBack }) {
                 Restore Defaults
               </button>
             </div>
-          </div>
-        </div>
-
-        <div className="flex flex-col overflow-y-auto rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-5 game-menu-scroll">
-          <div className="text-[18px] font-bold uppercase tracking-[0.22em] text-white/55">About</div>
-          <div className="mt-3 space-y-3 text-[16px] leading-snug text-white/75">
-            <p>
-              These are <span className="font-black uppercase tracking-[0.12em] text-white">overall game</span> settings — graphics
-              quality, effects, and feel. They apply to the whole game and save on your device.
-            </p>
-            <p>
-              Want to tune how <span className="font-black uppercase tracking-[0.12em] text-white">your vehicle</span> handles? Use the{" "}
-              <span className="font-black uppercase tracking-[0.12em] text-cyan-200">Quick Tuning</span> button during a match — that's separate from
-              these.
-            </p>
-            <p className="text-white/55">Use the render preset for the main perf/quality tradeoff. Manual changes flip to custom.</p>
           </div>
         </div>
       </div>

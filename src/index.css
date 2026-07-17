@@ -22,9 +22,9 @@ body {
   user-select: none;
 }
 
-body.lobby-cursor,
-body.lobby-cursor * {
-  cursor: url("/images/lobby-cursor.svg") 16 16, auto;
+body.app-cursor,
+body.app-cursor * {
+  cursor: url("/images/lobby-cursor.svg") 6 6, auto;
 }
 
 #root {

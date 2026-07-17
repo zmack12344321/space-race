@@ -4,10 +4,12 @@ import * as THREE from "three";
 import { useMultiplayerState } from "../../multiplayer/party";
 import { DistantMountains } from "./DistantMountains";
 import { LunarSky } from "./LunarTerrain";
+import { useGameSettings } from "../ui/gameSettingsStore";
 
 export function LunarEnvironment({ sunAngle: sunAngleProp, skyMode = "blue", starsMode = "lean" } = {}) {
   const [roomSunAngle] = useMultiplayerState("sunAngle", 0.94);
   const sunAngle = sunAngleProp ?? roomSunAngle;
+  const shadowDistance = useGameSettings((state) => state.shadowDistance);
   
   const sunDist = 500;
   const sunX = Math.cos(sunAngle * Math.PI) * sunDist;
@@ -38,8 +40,8 @@ export function LunarEnvironment({ sunAngle: sunAngleProp, skyMode = "blue", sta
     }
     if (lightRef.current && lightTargetRef.current) {
       // Texel Snapping to prevent shadow shimmering
-      const shadowCameraSize = 700; // shadow camera width (350 * 2)
-      const shadowMapSize = 4096;
+      const shadowCameraSize = shadowDistance;
+      const shadowMapSize = 2048;
       const texelSize = shadowCameraSize / shadowMapSize;
 
       const snappedX = Math.round(state.camera.position.x / texelSize) * texelSize;
@@ -72,7 +74,7 @@ export function LunarEnvironment({ sunAngle: sunAngleProp, skyMode = "blue", sta
       >
         <orthographicCamera 
           attach="shadow-camera" 
-          args={[-350, 350, 350, -350, 0.1, 4000]} 
+          args={[-shadowDistance / 2, shadowDistance / 2, shadowDistance / 2, -shadowDistance / 2, 0.1, shadowDistance * 6]} 
         />
       </directionalLight>
       <group ref={mountainsRef}>

@@ -225,7 +225,7 @@ export function ControlsScreen({ onBack }) {
     <div ref={panelRef} className="controls-font flex max-h-[min(86vh,52rem)] flex-col">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-[clamp(2.4rem,6vw,4rem)] font-black tracking-[-0.05em] leading-none">How to Play</h2>
+          <h2 className="text-[clamp(2.4rem,6vw,4rem)] font-black tracking-[-0.05em] leading-none">Controls</h2>
         </div>
         <button
           type="button"
@@ -238,7 +238,6 @@ export function ControlsScreen({ onBack }) {
 
       <div className="mt-5 grid flex-1 gap-4 overflow-hidden lg:grid-cols-2">
         <div className="flex flex-col overflow-y-auto rounded-[1.5rem] border border-cyan-300/30 bg-white/[0.04] p-5 game-menu-scroll">
-          <div className="mb-4 text-[18px] font-bold uppercase tracking-[0.22em] text-cyan-300/90">Your Settings</div>
           <div className="space-y-2.5">
             <ControlSlider
               label="Look Sensitivity"
@@ -264,7 +263,6 @@ export function ControlsScreen({ onBack }) {
         </div>
 
         <div className="flex flex-col gap-4 overflow-y-auto rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-5 game-menu-scroll">
-          <div className="text-[18px] font-bold uppercase tracking-[0.22em] text-white/55">Bindings</div>
           <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
             <div className="mb-3 text-[16px] font-bold uppercase tracking-[0.18em] text-white/70">Keyboard & Mouse</div>
             <div className="space-y-2.5">

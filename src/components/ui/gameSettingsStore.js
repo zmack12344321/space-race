@@ -9,6 +9,8 @@ export const DEFAULT_GAME_SETTINGS = {
   dprCap: 1.75,
   adaptiveDpr: true,
   starsMode: "lean", // "off" | "lean" | "full"
+  renderDistance: 11,
+  shadowDistance: 700,
 };
 
 const RENDER_PRESETS = {
@@ -18,6 +20,8 @@ const RENDER_PRESETS = {
     dprCap: 1.25,
     adaptiveDpr: true,
     starsMode: "off",
+    renderDistance: 10,
+    shadowDistance: 500,
   },
   balanced: {
     renderPreset: "balanced",
@@ -25,6 +29,8 @@ const RENDER_PRESETS = {
     dprCap: 1.75,
     adaptiveDpr: true,
     starsMode: "lean",
+    renderDistance: 11,
+    shadowDistance: 700,
   },
   quality: {
     renderPreset: "quality",
@@ -32,6 +38,8 @@ const RENDER_PRESETS = {
     dprCap: 2,
     adaptiveDpr: true,
     starsMode: "full",
+    renderDistance: 13,
+    shadowDistance: 900,
   },
 };
 
@@ -59,6 +67,8 @@ export const useGameSettings = create(
         dprCap: state.dprCap,
         adaptiveDpr: state.adaptiveDpr,
         starsMode: state.starsMode,
+        renderDistance: state.renderDistance,
+        shadowDistance: state.shadowDistance,
       }),
     }
   )

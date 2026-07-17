@@ -34,6 +34,7 @@ import { PlayerNameTag, gameTagProps } from "../environment/PlayerNameTag";
 import { useGamepadRef, getGamepadState, TRIGGER_DEADZONE } from "../ui/gamepadStore";
 import { setBoost } from "../ui/boostStore";
 import { usePlayerSettings } from "../ui/playerSettingsStore";
+import { useRaceCourseStore } from "../environment/raceCourseStore";
 import {
   fireLaser,
   LASER_TTL,
@@ -550,6 +551,11 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
     }
 
     spawnPoint.current = point;
+    me.setState("spawnPoint", point);
+    if (!testSpawn) {
+      me.setState("raceStartAt", point);
+      useRaceCourseStore.getState().resetRace();
+    }
 
     body.setTranslation({ x: point.x, y: point.y, z: point.z }, true);
     body.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -705,24 +711,15 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
             cameraControls.current.rotate(0, (settings.invertLookY ? pad.axes.ry : -pad.axes.ry) * turn, true);
           }
 
-          // D-pad up/down zooms the camera in/out (clamped by min/maxDistance).
-          // We set the `distance` property directly (which writes both the
-          // current and target radius) so the every-frame moveTo above can't
-          // clobber the zoom between frames — this is what makes D-pad zoom
-          // actually stick, unlike dolly()/dollyTo() which only move the target.
-          const zoomIn = pad.dpadUp;
-          const zoomOut = pad.dpadDown;
-          const zoomSpeed = 18;
-          if (zoomIn || zoomOut) {
-            const cur = cameraControls.current.distance;
-            if (typeof cur === "number" && Number.isFinite(cur)) {
-              const step = (zoomIn ? -1 : 1) * zoomSpeed * delta;
-              cameraControls.current.distance = Math.max(
-                cameraControls.current.minDistance,
-                Math.min(cameraControls.current.maxDistance, cur + step)
-              );
-            }
-          }
+          // D-pad up/down zooms the camera in/out. We drive it exactly like the
+          // scroll wheel does: a one-shot dollyTo() from the LIVE camera distance,
+          // computed only while the button is held. We never re-assert it every
+          // frame (that would fight/clobber the wheel's own dolly). camera-controls
+          // persist the radius natively, so distance survives moveTo()/setUp().
+          // dollyTo(d): larger d = farther away. UP = zoom IN (closer).
+          // D-pad zoom — same dolly() the scroll wheel uses.
+          if (pad.dpadUp) cameraControls.current.dolly(15 * delta, true);
+          if (pad.dpadDown) cameraControls.current.dolly(-15 * delta, true);
 
           if (!mouseButtonsConfigured.current && cameraControls.current) {
             cameraControls.current.mouseButtons.left = -1;
@@ -885,6 +882,13 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
             lastJumpAt: lastJumpAt.current,
             lastRespawnAt: lastRespawnAt.current,
             wheelSummary,
+            // D-pad zoom diagnostic — tells us if input reaches the zoom code
+            // and whether dolly() actually changes the camera distance.
+            dpadUp: Boolean(pad.dpadUp),
+            dpadDown: Boolean(pad.dpadDown),
+            camDist: cameraControls.current ? Number(cameraControls.current.distance?.toFixed?.(2)) : null,
+            camMin: cameraControls.current ? cameraControls.current.minDistance : null,
+            camMax: cameraControls.current ? cameraControls.current.maxDistance : null,
           });
         }
       }

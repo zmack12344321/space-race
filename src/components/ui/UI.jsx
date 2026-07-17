@@ -26,10 +26,94 @@ import { HeatMeter } from "./HeatMeter";
 import { HealthBar } from "./HealthBar";
 import { QRCodeSVG } from "qrcode.react";
 import { RoomChat } from "./RoomChat";
+import { useRaceCourseStore } from "../environment/raceCourseStore";
 
 export const NameEditingAtom = atom(false);
 export const GameMenuOpenAtom = atom(false);
 export const InviteOpenAtom = atom(false);
+
+function MenuGlyph({ open }) {
+  return (
+    <svg viewBox="0 0 24 24" className="h-7 w-7" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+      {open ? (
+        <path d="M6 6l12 12M18 6L6 18" />
+      ) : (
+        <>
+          <path d="M5 7h14" />
+          <path d="M5 12h14" />
+          <path d="M5 17h14" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+function TuningGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-7 w-7" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 5v14" />
+      <path d="M12 5v14" />
+      <path d="M17 5v14" />
+      <circle cx="7" cy="9" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="15" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="17" cy="11" r="1.6" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function IconBoxButton({ active, label, onClick, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={active}
+      className={`ui-button pointer-events-auto flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-xl border text-black transition ${active ? "border-cyan-300 bg-cyan-300" : "border-white/10 bg-gray-100"}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function RaceHud() {
+  const race = useRaceCourseStore((state) => state.race);
+  const raceMode = useMultiplayerState("raceMode", false)[0];
+  const [now, setNow] = useState(performance.now());
+
+  useEffect(() => {
+    if (!race.startedAt) return;
+    const id = setInterval(() => setNow(performance.now()), 100);
+    return () => clearInterval(id);
+  }, [race.startedAt]);
+
+  if (!raceMode) return null;
+
+  if (!race.startedAt) {
+    return (
+      <div className="fixed top-4 left-1/2 z-40 -translate-x-1/2 rounded-full border border-cyan-300/20 bg-black/50 px-4 py-2 text-[13px] font-black uppercase tracking-[0.18em] text-cyan-200 backdrop-blur-md">
+        Race Ready
+      </div>
+    );
+  }
+
+  const elapsed = Math.max(0, now - race.startedAt);
+  const seconds = Math.floor(elapsed / 1000);
+  const ms = Math.floor((elapsed % 1000) / 100);
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+
+  return (
+    <div className="fixed top-4 left-1/2 z-40 -translate-x-1/2 rounded-[1.25rem] border border-cyan-300/30 bg-slate-950/88 px-4 py-3 text-center text-white shadow-[0_18px_50px_rgba(0,0,0,0.45)] backdrop-blur-md">
+      <div className="text-[12px] font-black uppercase tracking-[0.18em] text-cyan-200/85">Race</div>
+      <div className="mt-1 font-mono text-[26px] font-black leading-none tracking-[-0.04em] text-white">
+        {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}.{ms}
+      </div>
+      <div className="mt-1 text-[12px] font-black uppercase tracking-[0.18em] text-white/65">
+        Rings Cleared: {race.cleared}
+      </div>
+    </div>
+  );
+}
 
 const LOADING_STARS = [
   { cx: 6, cy: 14, r: 1.6, delay: "0s" },
@@ -382,6 +466,8 @@ export const UI = () => {
 
   const respawn = () => {
     me?.setState("_respawnAt", Date.now());
+    me?.setState("raceResetAt", Date.now());
+    useRaceCourseStore.getState().resetRace();
     setRespawnUsed(true);
     setRespawnQuip(pickRespawnQuip());
     // Respawning from the paused menu should drop you straight back into the
@@ -442,11 +528,11 @@ export const UI = () => {
   }, [gameState, setMenuOpen]);
 
   useEffect(() => {
-    document.body.classList.toggle("lobby-cursor", gameState === "lobby");
+    document.body.classList.add("app-cursor");
     return () => {
-      document.body.classList.remove("lobby-cursor");
+      document.body.classList.remove("app-cursor");
     };
-  }, [gameState]);
+  }, []);
 
   useEffect(() => {
     if (gameState === "game") return;
@@ -609,27 +695,34 @@ export const UI = () => {
       )}
       {gameState === "game" && !loadingSlide && (
         <div className="fixed left-4 top-4 z-50 flex flex-col items-start gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setMenuOpen((value) => {
-                const next = !value;
-                if (!next) requestGamePointerLock();
-                return next;
-              });
-            }}
-            aria-label={menuOpen ? "Resume" : "Pause"}
-            className="ui-button pointer-events-auto px-8 py-2 bg-gray-100 text-black text-2xl rounded-md flex items-center gap-2"
-          >
-            {menuOpen ? "Resume" : "Menu"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setQuickTuningOpen(true)}
-            className="ui-button pointer-events-auto px-8 py-2 bg-gray-100 text-black text-2xl rounded-md flex items-center gap-2"
-          >
-            Quick Tuning
-          </button>
+          <div className="flex gap-2">
+            <IconBoxButton
+              active={menuOpen}
+              label={menuOpen ? "Close menu" : "Open menu"}
+              onClick={() => {
+                setMenuOpen((value) => {
+                  const next = !value;
+                  if (!next) requestGamePointerLock();
+                  return next;
+                });
+              }}
+            >
+              <MenuGlyph open={menuOpen} />
+            </IconBoxButton>
+            <IconBoxButton
+              active={quickTuningOpen}
+              label={quickTuningOpen ? "Close tuning" : "Open tuning"}
+              onClick={() => {
+                setQuickTuningOpen((value) => {
+                  const next = !value;
+                  if (!next) requestGamePointerLock();
+                  return next;
+                });
+              }}
+            >
+              <TuningGlyph />
+            </IconBoxButton>
+          </div>
         </div>
       )}
       {gameState === "game" && (
@@ -643,18 +736,28 @@ export const UI = () => {
           vehicleModel={me?.getState("vehicle") || "longboard"}
         />
       )}
-      {gameState === "game" && quickTuningOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden p-4 pointer-events-none">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm pointer-events-auto" onClick={() => { setQuickTuningOpen(false); requestGamePointerLock(); }} aria-hidden="true" />
-          <div className="relative z-10 pointer-events-auto">
-            <EcctrlTuningPanel open={quickTuningOpen} onClose={() => { setQuickTuningOpen(false); requestGamePointerLock(); }} vehicleModel={me?.getState("vehicle") || "longboard"} />
-          </div>
+      {gameState === "game" && (
+        <div className="fixed left-4 top-[5.75rem] z-50 w-[min(96vw,56rem)] pointer-events-none">
+          <EcctrlTuningPanel
+            id="quick-tuning-drawer"
+            open={quickTuningOpen}
+            onClose={() => {
+              setQuickTuningOpen(false);
+              requestGamePointerLock();
+            }}
+            vehicleModel={me?.getState("vehicle") || "longboard"}
+          />
         </div>
       )}
       {me && <BoardSelector me={me} menuOpen={menuOpen} />}
-      {gameState === "game" && !menuOpen && <HealthBar />}
-      {gameState === "game" && !menuOpen && <BoostMeter />}
-      {gameState === "game" && !menuOpen && <HeatMeter />}
+      {gameState === "game" && !menuOpen && (
+        <div className="fixed left-4 top-4 z-40 flex flex-col items-start gap-2">
+          <HealthBar />
+          <RaceHud />
+          <BoostMeter />
+          <HeatMeter />
+        </div>
+      )}
       {gameState === "game" && !loadingSlide && <MiniMap />}
       {gameState === "game" && isTouchDevice && <EcctrlTouchControls />}
       {(gameState === "lobby" || gameState === "game") && <RoomChat />}
@@ -889,6 +992,11 @@ const VehicleDebugHUD = ({ me }) => {
     ["angvel", debug.angvel ? `${debug.angvel.x.toFixed(2)}, ${debug.angvel.y.toFixed(2)}, ${debug.angvel.z.toFixed(2)}` : "-"],
     ["wheels", debug.wheelsOnGround != null ? debug.wheelsOnGround : "-"],
     ["jump", debug.lastJumpAt != null ? Math.round(debug.lastJumpAt) : "-"],
+    ["dpadUp", debug.dpadUp ? "YES" : "no"],
+    ["dpadDown", debug.dpadDown ? "YES" : "no"],
+    ["camDist", debug.camDist != null ? debug.camDist : "-"],
+    ["camMin", debug.camMin != null ? debug.camMin : "-"],
+    ["camMax", debug.camMax != null ? debug.camMax : "-"],
   ];
 
   return (

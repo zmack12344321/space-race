@@ -171,7 +171,7 @@ export function LunarSky({ skyMode = "blue", starsMode = "lean" } = {}) {
   );
 }
 
-export function LunarTerrain({ isStatic = false, staticRadius = 1, seed, heightOptions }) {
+export function LunarTerrain({ isStatic = false, staticRadius = 1, seed, heightOptions, visualRadiusBoost = 0 }) {
   const camera = useThree((state) => state.camera);
   const cameraWorldPosition = useRef(new THREE.Vector3());
   const [quality, setQuality] = useState(1);
@@ -205,7 +205,7 @@ export function LunarTerrain({ isStatic = false, staticRadius = 1, seed, heightO
 
   const chunks = useMemo(() => {
     // If static, only generate a fixed 3x3 grid centered at 0
-    const radius = isStatic ? staticRadius : (quality < 0.35 ? 3 : DEFAULT_VISUAL_RADIUS);
+    const radius = (isStatic ? staticRadius : (quality < 0.35 ? 3 : DEFAULT_VISUAL_RADIUS)) + visualRadiusBoost;
     const list = [];
     const cx = isStatic ? 0 : center.x;
     const cz = isStatic ? 0 : center.z;
@@ -215,7 +215,7 @@ export function LunarTerrain({ isStatic = false, staticRadius = 1, seed, heightO
       }
     }
     return list;
-  }, [center, quality, isStatic, staticRadius]);
+  }, [center, quality, isStatic, staticRadius, visualRadiusBoost]);
 
   return (
     <>

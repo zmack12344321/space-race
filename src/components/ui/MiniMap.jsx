@@ -119,8 +119,9 @@ export const MiniMap = () => {
       }
 
       // Race gates.
-      if (raceMarkers.length > 0) {
-        for (const gate of raceMarkers) {
+      const activeGates = raceMarkers.filter((gate) => gate.active);
+      if (activeGates.length > 0) {
+        for (const gate of activeGates) {
           const dx = gate.x - localPos.x;
           const dz = gate.z - localPos.z;
           let mx = -(dx * rightX + dz * rightZ) * scale;
