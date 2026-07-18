@@ -54,7 +54,7 @@ function TuningGlyph() {
       <path d="M7 5v14" />
       <path d="M12 5v14" />
       <path d="M17 5v14" />
-      <circle cx="7" cy="9" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="7" cy="8" r="1.6" fill="currentColor" stroke="none" />
       <circle cx="12" cy="15" r="1.6" fill="currentColor" stroke="none" />
       <circle cx="17" cy="11" r="1.6" fill="currentColor" stroke="none" />
     </svg>
@@ -68,7 +68,7 @@ function IconBoxButton({ active, label, onClick, children }) {
       onClick={onClick}
       aria-label={label}
       aria-pressed={active}
-      className={`ui-button pointer-events-auto flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-xl border text-black transition ${active ? "border-cyan-300 bg-cyan-300" : "border-white/10 bg-gray-100"}`}
+      className={`ui-button pointer-events-auto flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-xl border text-black transition ${active ? "border-cyan-300 bg-cyan-300" : "border-white/10 bg-gray-100"}`}
     >
       {children}
     </button>
@@ -88,13 +88,7 @@ function RaceHud() {
 
   if (!raceMode) return null;
 
-  if (!race.startedAt) {
-    return (
-      <div className="fixed top-4 left-1/2 z-40 -translate-x-1/2 rounded-full border border-cyan-300/20 bg-black/50 px-4 py-2 text-[13px] font-black uppercase tracking-[0.18em] text-cyan-200 backdrop-blur-md">
-        Race Ready
-      </div>
-    );
-  }
+  if (!race.startedAt) return null;
 
   const elapsed = Math.max(0, now - race.startedAt);
   const seconds = Math.floor(elapsed / 1000);
@@ -103,7 +97,7 @@ function RaceHud() {
   const secs = seconds % 60;
 
   return (
-    <div className="fixed top-4 left-1/2 z-40 -translate-x-1/2 rounded-[1.25rem] border border-cyan-300/30 bg-slate-950/88 px-4 py-3 text-center text-white shadow-[0_18px_50px_rgba(0,0,0,0.45)] backdrop-blur-md">
+      <div className="fixed top-4 left-1/2 z-40 -translate-x-1/2 rounded-[1.25rem] border border-cyan-300/30 bg-slate-950/88 px-4 py-3 text-center text-white shadow-[0_18px_50px_rgba(0,0,0,0.45)] backdrop-blur-md">
       <div className="text-[12px] font-black uppercase tracking-[0.18em] text-cyan-200/85">Race</div>
       <div className="mt-1 font-mono text-[26px] font-black leading-none tracking-[-0.04em] text-white">
         {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}.{ms}
@@ -578,6 +572,14 @@ export const UI = () => {
     };
   }, [gameState, menuOpen, isTestMode, setMenuOpen, setPhysicsDebug, gamepadRef, quickTuningOpen, setQuickTuningOpen]);
 
+  useEffect(() => {
+    if (menuOpen && quickTuningOpen) setQuickTuningOpen(false);
+  }, [menuOpen, quickTuningOpen]);
+
+  useEffect(() => {
+    if (quickTuningOpen && menuOpen) setMenuOpen(false);
+  }, [quickTuningOpen, menuOpen, setMenuOpen]);
+
   usePlayersList(true);
 
   useEffect(() => {
@@ -694,7 +696,7 @@ export const UI = () => {
       </div>
       )}
       {gameState === "game" && !loadingSlide && (
-        <div className="fixed left-4 top-4 z-50 flex flex-col items-start gap-2">
+        <div className="fixed left-4 top-5 z-50 flex flex-col items-start gap-2">
           <div className="flex gap-2">
             <IconBoxButton
               active={menuOpen}
@@ -702,6 +704,7 @@ export const UI = () => {
               onClick={() => {
                 setMenuOpen((value) => {
                   const next = !value;
+                  if (next) setQuickTuningOpen(false);
                   if (!next) requestGamePointerLock();
                   return next;
                 });
@@ -715,6 +718,7 @@ export const UI = () => {
               onClick={() => {
                 setQuickTuningOpen((value) => {
                   const next = !value;
+                  if (next) setMenuOpen(false);
                   if (!next) requestGamePointerLock();
                   return next;
                 });
@@ -737,7 +741,7 @@ export const UI = () => {
         />
       )}
       {gameState === "game" && (
-        <div className="fixed left-4 top-[5.75rem] z-50 w-[min(96vw,56rem)] pointer-events-none">
+        <div className="fixed left-6 top-[7rem] z-50 w-[min(96vw,56rem)] pointer-events-none sm:left-8">
           <EcctrlTuningPanel
             id="quick-tuning-drawer"
             open={quickTuningOpen}
@@ -754,13 +758,13 @@ export const UI = () => {
         <div className="fixed left-4 top-4 z-40 flex flex-col items-start gap-2">
           <HealthBar />
           <RaceHud />
-          <BoostMeter />
+          <BoostMeter position={quickTuningOpen ? "right" : "left"} />
           <HeatMeter />
         </div>
       )}
       {gameState === "game" && !loadingSlide && <MiniMap />}
       {gameState === "game" && isTouchDevice && <EcctrlTouchControls />}
-      {(gameState === "lobby" || gameState === "game") && <RoomChat />}
+      {(gameState === "lobby" || gameState === "game") && <RoomChat blocked={menuOpen || quickTuningOpen} />}
       {gameState === "lobby" && isHost() && (
         <div className="fixed bottom-4 right-4 z-10 w-[min(92vw,24rem)] flex flex-col gap-3 items-stretch sm:items-end">
           <button

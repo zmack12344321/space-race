@@ -123,7 +123,7 @@ export function DistantMountains({
   color = "#0e1626",
   position = [0, 0, 0],
 } = {}) {
-  const mountainPush = 180;
+  const mountainPush = 620;
 
   const bands = useMemo(
     () => [

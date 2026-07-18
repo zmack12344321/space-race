@@ -4,8 +4,7 @@ import { persist } from "zustand/middleware";
 export const DEFAULT_PLAYER_SETTINGS = {
   lookSensitivity: 1,
   invertLookY: false,
-  invertLookX: false,
-  invertSteering: false,
+  invertLookX: true,
 };
 
 export const usePlayerSettings = create(
@@ -21,7 +20,6 @@ export const usePlayerSettings = create(
         lookSensitivity: state.lookSensitivity,
         invertLookY: state.invertLookY,
         invertLookX: state.invertLookX,
-        invertSteering: state.invertSteering,
       }),
     }
   )

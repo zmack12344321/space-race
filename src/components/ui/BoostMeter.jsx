@@ -1,7 +1,7 @@
 import { useBoost } from "./boostStore";
 
 // Vertical boost meter pinned to the LEFT edge of the screen.
-export function BoostMeter() {
+export function BoostMeter({ className = "", position = "left" } = {}) {
   const { value, active, locked } = useBoost();
   const pct = Math.round(Math.max(0, Math.min(1, value)) * 100);
   const fill = locked
@@ -10,7 +10,11 @@ export function BoostMeter() {
     ? "bg-cyan-300 shadow-[0_0_18px_rgba(103,232,249,0.85)]"
     : "bg-cyan-400/70";
   return (
-    <div className="fixed left-4 top-1/2 -translate-y-1/2 z-30 pointer-events-none select-none">
+    <div
+      className={`fixed z-30 pointer-events-none select-none ${
+        position === "right" ? "right-4 top-1/2 -translate-y-1/2" : "left-4 top-1/2 -translate-y-1/2"
+      } ${className}`}
+    >
       <div className="flex flex-col items-center gap-2">
         <div className="text-[10px] font-black uppercase tracking-[0.3em] text-cyan-200/80 [writing-mode:vertical-rl] rotate-180">
           Boost

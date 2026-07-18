@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 export const useRaceCourseStore = create((set) => ({
   markers: [],
+  resetToken: 0,
   setMarkers: (markers) => set({ markers }),
   race: {
     startedAt: null,
@@ -17,11 +18,13 @@ export const useRaceCourseStore = create((set) => ({
       },
     })),
   resetRace: () =>
-    set({
+    set((state) => ({
       race: {
         startedAt: null,
         cleared: 0,
         running: false,
       },
-    }),
+      markers: [],
+      resetToken: state.resetToken + 1,
+    })),
 }));

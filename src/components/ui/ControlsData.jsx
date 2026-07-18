@@ -247,9 +247,8 @@ export function ControlsScreen({ onBack }) {
               step={0.05}
               onChange={(value) => setSetting("lookSensitivity", value)}
             />
-            <ControlToggle label="Invert Look Y" value={settings.invertLookY} onChange={(value) => setSetting("invertLookY", value)} />
-            <ControlToggle label="Invert Look X" value={settings.invertLookX} onChange={(value) => setSetting("invertLookX", value)} />
-            <ControlToggle label="Invert Steering" value={settings.invertSteering} onChange={(value) => setSetting("invertSteering", value)} />
+            <ControlToggle label="Invert Camera Y" value={settings.invertLookY} onChange={(value) => setSetting("invertLookY", value)} />
+            <ControlToggle label="Invert Camera X" value={settings.invertLookX} onChange={(value) => setSetting("invertLookX", value)} />
             <div className="pt-1">
               <button
                 type="button"

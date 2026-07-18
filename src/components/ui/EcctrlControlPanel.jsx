@@ -5,11 +5,11 @@ import { useMultiplayerState } from "../../multiplayer/party";
 import { useGamepadRef } from "./gamepadStore";
 
 const panelShell =
-  "controls-font w-[min(92vw,44rem)] overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950/92 text-white shadow-[0_30px_100px_rgba(0,0,0,0.6)] flex pointer-events-auto";
+  "controls-font h-full w-[min(92vw,44rem)] min-h-0 flex flex-col overflow-hidden rounded-[2rem] bg-slate-950/92 text-white pointer-events-auto";
 
 function Slider({ label, value, min, max, step, onChange }) {
   return (
-    <label className="control-row rounded-[1rem] border border-white/[0.08] bg-black/20 px-3.5 py-3 flex flex-col gap-1.5">
+    <label className="control-row rounded-[1.25rem] border border-white/[0.08] bg-black/20 px-5 py-4 flex flex-col gap-2">
       <div className="flex items-center justify-between gap-3 text-[13px] text-white/90">
         <span className="font-black uppercase tracking-[0.14em]">{label}</span>
         <span className="font-mono text-[12px] text-white/70">
@@ -31,7 +31,7 @@ function Slider({ label, value, min, max, step, onChange }) {
 
 function Section({ title, eyebrow, children }) {
   return (
-    <section className="rounded-[1.25rem] border border-cyan-300/25 bg-white/[0.04] px-3.5 py-3.5">
+    <section className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] px-5 py-4">
       <div className="mb-3 flex items-baseline justify-between gap-3">
         <div>
           {eyebrow && <div className="text-[12px] font-bold uppercase tracking-[0.2em] text-cyan-300/90">{eyebrow}</div>}
@@ -48,7 +48,7 @@ function ActionButton({ children, onClick, className = "" }) {
     <button
       type="button"
       onClick={onClick}
-      className={`ui-button rounded-full border border-white/10 bg-white/8 px-4 py-2.5 text-[13px] font-black uppercase tracking-[0.14em] text-white ${className}`}
+      className={`ui-button rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-[13px] font-black uppercase tracking-[0.14em] text-white hover:bg-white/10 ${className}`}
     >
       {children}
     </button>
@@ -62,7 +62,7 @@ function Toggle({ label, hint, value, onChange }) {
       role="switch"
       aria-checked={value}
       onClick={() => onChange(!value)}
-      className="control-row flex w-full items-center justify-between gap-3 rounded-[1rem] border border-white/[0.08] bg-black/20 px-3.5 py-3 text-left"
+      className="control-row flex w-full items-center justify-between gap-3 rounded-[1.25rem] border border-white/[0.08] bg-black/20 px-5 py-4 text-left"
     >
       <span className="flex flex-col">
         <span className="text-[13px] font-black uppercase tracking-[0.14em] text-white">{label}</span>
@@ -70,7 +70,7 @@ function Toggle({ label, hint, value, onChange }) {
       </span>
       <span
         className={`relative h-[1.625rem] w-11 shrink-0 rounded-full border transition ${
-          value ? "border-cyan-300/60 bg-cyan-300/30" : "border-white/15 bg-white/5"
+          value ? "border-cyan-300/50 bg-cyan-300/25" : "border-white/15 bg-white/8"
         }`}
       >
         <span
@@ -97,6 +97,10 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
   const [raceSegmentLength, setRaceSegmentLength] = useMultiplayerState("raceSegmentLength", 32);
   const [raceGateClearance, setRaceGateClearance] = useMultiplayerState("raceGateClearance", 14);
   const [raceTurnStrength, setRaceTurnStrength] = useMultiplayerState("raceTurnStrength", 0.58);
+  const [raceRouteVariety, setRaceRouteVariety] = useMultiplayerState("raceRouteVariety", 0.55);
+  const [raceArchBias, setRaceArchBias] = useMultiplayerState("raceArchBias", 0.3);
+  const [racePeakBias, setRacePeakBias] = useMultiplayerState("racePeakBias", 0.3);
+  const [raceCanyonBias, setRaceCanyonBias] = useMultiplayerState("raceCanyonBias", 0.25);
 
   const tabs = useMemo(
     () => [
@@ -297,12 +301,12 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
       ref={panelRef}
       id={id}
       aria-hidden={!open}
-      className={`pointer-events-auto overflow-hidden transition-[max-height,opacity,transform] duration-300 ease-out ${
-        open ? "max-h-[min(82vh,40rem)] opacity-100 translate-y-0" : "max-h-0 opacity-0 -translate-y-3 pointer-events-none"
+      className={`pointer-events-auto overflow-hidden rounded-[2rem] border border-white/10 shadow-[0_18px_48px_rgba(0,0,0,0.42)] transition-[height,opacity,transform] duration-300 ease-out ${
+        open ? "h-[min(88vh,46rem)] opacity-100 translate-y-0" : "h-0 opacity-0 -translate-y-3 pointer-events-none"
       }`}
     >
       <div className={`${panelShell} origin-top-left`}>
-        <div className="flex w-full min-h-0 flex-col overflow-hidden">
+        <div className="flex h-full w-full min-h-0 flex-col overflow-hidden">
           <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
             <div className="min-w-0">
               <h2 className="text-[clamp(2rem,4.6vw,3rem)] font-black tracking-[-0.06em] leading-none">Quick Tuning</h2>
@@ -313,15 +317,14 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
             <button
               type="button"
               onClick={() => onClose?.()}
-              className="ui-button shrink-0 rounded-full border border-white/10 bg-white/[0.08] px-5 py-3 text-[13px] font-black uppercase tracking-[0.16em] text-white"
+              className="ui-button shrink-0 rounded-full border border-white/10 bg-white/[0.08] px-5 py-3 text-[13px] font-black uppercase tracking-[0.16em] text-white hover:bg-white/10"
             >
               Close
             </button>
           </div>
 
-          <div className="grid min-h-0 flex-1 grid-cols-[6.75rem_1fr] gap-3 p-3">
-            <div className="rounded-[1.15rem] border border-white/10 bg-white/[0.03] p-2.5" role="tablist" aria-label="Quick tuning sections">
-              <div className="flex flex-col gap-2">
+          <div className="grid min-h-0 flex-1 grid-cols-[7.5rem_1fr] gap-3 p-3">
+            <div className="flex max-h-full flex-col gap-2.5 overflow-y-auto pt-1 pr-1" role="tablist" aria-label="Quick tuning sections">
                 {tabs.map(([key, label]) => (
                   <button
                     key={key}
@@ -330,66 +333,65 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
                     data-tab={key}
                     aria-selected={tab === key}
                     role="tab"
-                    className={`ui-button flex h-12 w-full items-center justify-center rounded-[1rem] border px-2.5 py-2 text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/80 ${
+                    className={`ui-button flex h-14 w-full items-center justify-center rounded-2xl border px-2.5 py-2 text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/80 ${
                       tab === key
-                        ? "border-cyan-300/45 bg-cyan-300/16 text-cyan-100"
+                        ? "border-cyan-300/50 bg-cyan-300/18 text-cyan-100"
                         : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
                     }`}
                   >
-                    <div className="text-[13px] font-black uppercase tracking-[0.16em] leading-none">{label}</div>
+                    <div className="text-[14px] font-black uppercase tracking-[0.16em] leading-none">{label}</div>
                   </button>
                 ))}
-              </div>
             </div>
 
-            <div className="min-h-0 overflow-y-auto pr-1.5 game-menu-scroll">
+            <div className="min-h-0 overflow-y-auto pr-1.5 pt-1 pb-3 game-menu-scroll">
               {tab === "scene" && (
                 <Section title="World" eyebrow="Scene">
-                  <Slider label="Sun Angle" value={sunAngle} min={0} max={1} step={0.01} onChange={setSunAngle} />
-                  <Slider
-                    label="Render Distance"
-                    value={gameSettings.renderDistance}
-                    min={8}
-                    max={16}
-                    step={0.5}
-                    onChange={(value) => {
-                      markCustomRender();
-                      setGameSetting("renderDistance", value);
-                    }}
-                  />
-                  <Slider
-                    label="Shadow Draw Distance"
-                    value={gameSettings.shadowDistance}
-                    min={400}
-                    max={1400}
-                    step={50}
-                    onChange={(value) => {
-                      markCustomRender();
-                      setGameSetting("shadowDistance", value);
-                    }}
-                  />
-                  <Toggle
-                    label="Race Mode"
-                    hint="Gates path mode. Drive through each ring to light next one."
-                    value={raceMode}
-                    onChange={setRaceMode}
-                  />
-                  <div className="rounded-[1rem] border border-white/[0.08] bg-black/20 px-3.5 py-3">
-                    <div className="mb-2 text-[12px] font-black uppercase tracking-[0.18em] text-cyan-200/85">Race Controls</div>
-                    <div className="space-y-2.5">
-                      <Slider label="Ring Spacing" value={raceSegmentLength} min={24} max={44} step={1} onChange={setRaceSegmentLength} />
-                      <Slider label="Gate Clearance" value={raceGateClearance} min={10} max={20} step={0.5} onChange={setRaceGateClearance} />
-                      <Slider label="Weave Strength" value={raceTurnStrength} min={0.25} max={1.1} step={0.01} onChange={setRaceTurnStrength} />
-                    </div>
+                  <div className="grid gap-2.5 sm:grid-cols-2">
+                    <Slider label="Sun Angle" value={sunAngle} min={0} max={1} step={0.01} onChange={setSunAngle} />
+                    <Slider
+                      label="Render Distance"
+                      value={gameSettings.renderDistance}
+                      min={8}
+                      max={16}
+                      step={0.5}
+                      onChange={(value) => {
+                        markCustomRender();
+                        setGameSetting("renderDistance", value);
+                      }}
+                    />
+                    <Slider
+                      label="Shadow Draw Distance"
+                      value={gameSettings.shadowDistance}
+                      min={400}
+                      max={2400}
+                      step={50}
+                      onChange={(value) => {
+                        markCustomRender();
+                        setGameSetting("shadowDistance", value);
+                      }}
+                    />
                   </div>
                 </Section>
               )}
 
               {tab === "race" && (
                 <Section title="Course" eyebrow="Race">
-                  <Slider label="Ring Spacing" value={raceSegmentLength} min={24} max={44} step={1} onChange={setRaceSegmentLength} />
-                  <Slider label="Gate Clearance" value={raceGateClearance} min={10} max={20} step={0.5} onChange={setRaceGateClearance} />
-                  <Slider label="Weave Strength" value={raceTurnStrength} min={0.25} max={1.1} step={0.01} onChange={setRaceTurnStrength} />
+                  <Toggle
+                    label="Race Mode"
+                    hint="Gates path mode. Drive through each ring to light next one."
+                    value={raceMode}
+                    onChange={setRaceMode}
+                  />
+                  <div className="grid gap-2.5 sm:grid-cols-2">
+                    <Slider label="Ring Spacing" value={raceSegmentLength} min={18} max={72} step={1} onChange={setRaceSegmentLength} />
+                    <Slider label="Gate Clearance" value={raceGateClearance} min={4} max={32} step={1} onChange={setRaceGateClearance} />
+                    <Slider label="Weave Strength" value={raceTurnStrength} min={0.2} max={1.5} step={0.01} onChange={setRaceTurnStrength} />
+                    <Slider label="Route Variety" value={raceRouteVariety} min={0} max={1} step={0.01} onChange={setRaceRouteVariety} />
+                    <Slider label="Arch Bias" value={raceArchBias} min={0} max={1} step={0.01} onChange={setRaceArchBias} />
+                    <Slider label="Peak Bias" value={racePeakBias} min={0} max={1} step={0.01} onChange={setRacePeakBias} />
+                    <Slider label="Canyon Bias" value={raceCanyonBias} min={0} max={1} step={0.01} onChange={setRaceCanyonBias} />
+                  </div>
                 </Section>
               )}
 

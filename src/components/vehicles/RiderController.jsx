@@ -46,12 +46,12 @@ import {
 
 const ARCADE_JUMP_IMPULSE = 360;
 const WORLD_UP = new Vector3(0, 1, 0);
-  const BOOST_DRAIN = 0.16;
-  const BOOST_RECHARGE = 0.34;
-  const BOOST_LOCK_THRESHOLD = 0.18;
-  // Slightly higher tilt while boosting => a bit faster ramp, but not so high
-  // it flips the drone.
-  const BOOST_TILT = Math.PI / 3.4;
+const BOOST_DRAIN = 0.16;
+const BOOST_RECHARGE = 0.34;
+const BOOST_LOCK_THRESHOLD = 0.18;
+// Slightly higher tilt while boosting => a bit faster ramp, but not so high
+// it flips the drone.
+const BOOST_TILT = Math.PI / 3.4;
 
 // Reused temps to avoid per-frame allocations (GC stutter).
 const _qPrev = new Quaternion();
@@ -497,24 +497,24 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
       target?.tagName === "TEXTAREA" ||
       target?.isContentEditable;
 
-      const setKey = (event, pressed) => {
-        if (isTypingTarget(event.target)) return;
-        const code = event.code;
-        if (["KeyW", "KeyA", "KeyS", "KeyD", "Space", "KeyC", "ShiftLeft", "ShiftRight", "KeyE"].includes(code)) {
-          event.preventDefault();
-        }
-        if (code === "KeyW") keys.current.forward = pressed;
-        if (code === "KeyS") keys.current.back = pressed;
-        if (code === "KeyA") keys.current.left = pressed;
-        if (code === "KeyD") keys.current.right = pressed;
-        if (code === "Space") {
-          keys.current.up = pressed;
-          if (!isDroneRef.current) jumpRequested.current = true;
-        }
-        if (code === "KeyC") keys.current.down = pressed;
-        if (code === "ShiftLeft" || code === "ShiftRight") keys.current.boost = pressed;
-        if (code === "KeyE") keys.current.handbrake = pressed;
-      };
+    const setKey = (event, pressed) => {
+      if (isTypingTarget(event.target)) return;
+      const code = event.code;
+      if (["KeyW", "KeyA", "KeyS", "KeyD", "Space", "KeyC", "ShiftLeft", "ShiftRight", "KeyE"].includes(code)) {
+        event.preventDefault();
+      }
+      if (code === "KeyW") keys.current.forward = pressed;
+      if (code === "KeyS") keys.current.back = pressed;
+      if (code === "KeyA") keys.current.left = pressed;
+      if (code === "KeyD") keys.current.right = pressed;
+      if (code === "Space") {
+        keys.current.up = pressed;
+        if (!isDroneRef.current) jumpRequested.current = true;
+      }
+      if (code === "KeyC") keys.current.down = pressed;
+      if (code === "ShiftLeft" || code === "ShiftRight") keys.current.boost = pressed;
+      if (code === "KeyE") keys.current.handbrake = pressed;
+    };
 
     const onKeyDown = (event) => setKey(event, true);
     const onKeyUp = (event) => setKey(event, false);
@@ -540,14 +540,14 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
     } else {
       point = getGroundHeight
         ? getLunarSpawnPoint({
-            respawnIndex: slotIndex,
-            groundHeight: getGroundHeight,
-          })
+          respawnIndex: slotIndex,
+          groundHeight: getGroundHeight,
+        })
         : {
-            x: randInt(-10, 10) * 5,
-            y: 2,
-            z: randInt(-10, 10) * 5,
-          };
+          x: randInt(-10, 10) * 5,
+          y: 2,
+          z: randInt(-10, 10) * 5,
+        };
     }
 
     spawnPoint.current = point;
@@ -570,7 +570,7 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
     // Snap the camera directly behind the spawn facing forward (+Z) so the
     // character doesn't appear to face left while the camera slowly catches up.
     if (cameraControls.current) {
-      const dist = cameraControls.current.minDistance + 6;
+      const dist = cameraControls.current.minDistance + 7;
       cameraControls.current.setLookAt(point.x, point.y + tuning.common.cameraHeight, point.z - dist, point.x, point.y + tuning.common.cameraHeight, point.z, false);
     }
 
@@ -664,7 +664,7 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
         beamSlot.current.active = false;
         beamSlot.current.isBeam = false;
         beamSlot.current = null;
-          send({ type: "beam", ownerId: me.id, pos: pack(md.muzzle), dir: pack(md.dir), beamLength: BEAM_LENGTH, active: false });
+        send({ type: "beam", ownerId: me.id, pos: pack(md.muzzle), dir: pack(md.dir), beamLength: BEAM_LENGTH, active: false });
       }
     }
 
@@ -673,86 +673,87 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
     const gamepadForward = pad.axes.rt > 0.12;
     const gamepadBack = pad.axes.lt > 0.12;
     const settings = usePlayerSettings.getState();
-    const gamepadSteer = settings.invertSteering ? -pad.axes.lx : pad.axes.lx;
+    const gamepadSteer = pad.axes.lx;
     const boostHeld = keys.current.boost || ecctrlButtons.current.b4 || pad.axes.lt > 0.12;
     const linvel = cachedBodyState.current.linvel;
     const bodyForwardSpeed = linvel.x * handle.bodyZAxis.x + linvel.y * handle.bodyZAxis.y + linvel.z * handle.bodyZAxis.z;
     const backPressed = keys.current.back || ecctrlButtons.current.b1 || gamepadBack || joystickL.y < -0.2;
     const backIsBrake = backPressed && bodyForwardSpeed > 1.2;
 
-      if (isLocal && isSpawned) {
-        if (boostLocked.current && boostEnergy.current > BOOST_LOCK_THRESHOLD) boostLocked.current = false;
-        const canBoost = boostHeld && !boostLocked.current && boostEnergy.current > 0.001;
-        if (canBoost) {
-          boostEnergy.current = Math.max(0, boostEnergy.current - BOOST_DRAIN * delta);
-          if (boostEnergy.current <= 0.001) boostLocked.current = true;
-        } else {
-          boostEnergy.current = Math.min(1, boostEnergy.current + BOOST_RECHARGE * delta);
+    if (isLocal && isSpawned) {
+      if (boostLocked.current && boostEnergy.current > BOOST_LOCK_THRESHOLD) boostLocked.current = false;
+      const canBoost = boostHeld && !boostLocked.current && boostEnergy.current > 0.001;
+      if (canBoost) {
+        boostEnergy.current = Math.max(0, boostEnergy.current - BOOST_DRAIN * delta);
+        if (boostEnergy.current <= 0.001) boostLocked.current = true;
+      } else {
+        boostEnergy.current = Math.min(1, boostEnergy.current + BOOST_RECHARGE * delta);
+      }
+      if (canBoost !== boostActive) setBoostActive(canBoost);
+      setBoost(boostEnergy.current, canBoost, boostLocked.current);
+
+      // Boost is driven entirely through ecctrl's own smoothed inputs (same
+      // path Space uses), so it feels natural instead of jerky. While boosting
+      // we inject an analog pitch/roll demand and lift the speed caps. No raw
+      // velocity injection — ecctrl's PD controller eases it like normal input.
+
+      if (cameraControls.current) {
+        cameraControls.current.moveTo(handle.currPos.x, handle.currPos.y + tuning.common.cameraHeight, handle.currPos.z, true);
+        cameraUp.current.copy(isDrone ? WORLD_UP : handle.upAxis);
+        camera.up.lerp(cameraUp.current, 0.1);
+        cameraControls.current.setUp(camera.up);
+
+        const turn = tuning.common.cameraTurnSpeed * 0.4 * delta * (settings.lookSensitivity ?? 1);
+        if (Math.abs(pad.axes.rx) > 0.08) {
+          cameraControls.current.rotate((settings.invertLookX ? -pad.axes.rx : pad.axes.rx) * turn, 0, true);
         }
-        if (canBoost !== boostActive) setBoostActive(canBoost);
-        setBoost(boostEnergy.current, canBoost, boostLocked.current);
-
-        // Boost is driven entirely through ecctrl's own smoothed inputs (same
-        // path Space uses), so it feels natural instead of jerky. While boosting
-        // we inject an analog pitch/roll demand and lift the speed caps. No raw
-        // velocity injection — ecctrl's PD controller eases it like normal input.
-
-        if (cameraControls.current) {
-          cameraControls.current.moveTo(handle.currPos.x, handle.currPos.y + tuning.common.cameraHeight, handle.currPos.z, true);
-          cameraUp.current.copy(isDrone ? WORLD_UP : handle.upAxis);
-          camera.up.lerp(cameraUp.current, 0.1);
-          cameraControls.current.setUp(camera.up);
-
-          const turn = tuning.common.cameraTurnSpeed * 0.4 * delta * (settings.lookSensitivity ?? 1);
-          if (Math.abs(pad.axes.rx) > 0.08) {
-            cameraControls.current.rotate((settings.invertLookX ? -pad.axes.rx : pad.axes.rx) * turn, 0, true);
-          }
-          if (Math.abs(pad.axes.ry) > 0.08) {
-            cameraControls.current.rotate(0, (settings.invertLookY ? pad.axes.ry : -pad.axes.ry) * turn, true);
-          }
-
-          // D-pad up/down zooms the camera in/out. We drive it exactly like the
-          // scroll wheel does: a one-shot dollyTo() from the LIVE camera distance,
-          // computed only while the button is held. We never re-assert it every
-          // frame (that would fight/clobber the wheel's own dolly). camera-controls
-          // persist the radius natively, so distance survives moveTo()/setUp().
-          // dollyTo(d): larger d = farther away. UP = zoom IN (closer).
-          // D-pad zoom — same dolly() the scroll wheel uses.
-          if (pad.dpadUp) cameraControls.current.dolly(15 * delta, true);
-          if (pad.dpadDown) cameraControls.current.dolly(-15 * delta, true);
-
-          if (!mouseButtonsConfigured.current && cameraControls.current) {
-            cameraControls.current.mouseButtons.left = -1;
-            mouseButtonsConfigured.current = true;
-          }
-
-          if (mouseLook.current.x !== 0 || mouseLook.current.y !== 0) {
-            const sens = settings.lookSensitivity ?? 1;
-            const k = 0.0025;
-            const mx = (settings.invertLookX ? -mouseLook.current.x : mouseLook.current.x) * k * sens;
-            const my = (settings.invertLookY ? mouseLook.current.y : -mouseLook.current.y) * k * sens;
-            cameraControls.current.rotate(mx, my, true);
-            mouseLook.current.x = 0;
-            mouseLook.current.y = 0;
-          }
-
-          const forwardInput = !isDrone && (keys.current.forward || ecctrlButtons.current.b3 || gamepadForward || joystickL.y > 0.2);
-
-          if (cameraControls.current.currentAction === 0 && forwardInput && bodyForwardSpeed > 0.15) {
-            camera.getWorldDirection(cameraCurrDir.current).projectOnPlane(cameraUp.current).normalize();
-            cameraFinalDir.current.copy(handle.bodyZAxis).projectOnPlane(cameraUp.current).normalize();
-            cameraTurnCrossAxis.current.crossVectors(cameraCurrDir.current, cameraFinalDir.current);
-            let dot = Math.max(-1, Math.min(1, cameraCurrDir.current.dot(cameraFinalDir.current)));
-            if (Math.abs(dot) < 1e-10) dot = 0;
-            const angle = Math.atan2(cameraTurnCrossAxis.current.dot(cameraUp.current), dot);
-            cameraControls.current.rotate(angle * tuning.common.cameraTurnSpeed * 0.28 * delta, 0, true);
-          }
-
+        if (Math.abs(pad.axes.ry) > 0.08) {
+          cameraControls.current.rotate(0, (settings.invertLookY ? pad.axes.ry : -pad.axes.ry) * turn, true);
         }
+
+        // D-pad up/down zooms the camera in/out. We drive it exactly like the
+        // scroll wheel does: a one-shot dollyTo() from the LIVE camera distance,
+        // computed only while the button is held. We never re-assert it every
+        // frame (that would fight/clobber the wheel's own dolly). camera-controls
+        // persist the radius natively, so distance survives moveTo()/setUp().
+        // dollyTo(d): larger d = farther away. UP = zoom IN (closer).
+        // D-pad zoom — same dolly() the scroll wheel uses.
+        if (typeof window !== "undefined" && window.__z) { console.log("[Z] up", pad.dpadUp, "down", pad.dpadDown, "keys", Object.keys(pad).filter((k) => k.startsWith("dpad")).join(","), "dist", cameraControls.current.distance); }
+        if (pad.dpadUp) cameraControls.current.dolly(15 * delta, true);
+        if (pad.dpadDown) cameraControls.current.dolly(-15 * delta, true);
+
+        if (!mouseButtonsConfigured.current && cameraControls.current) {
+          cameraControls.current.mouseButtons.left = -1;
+          mouseButtonsConfigured.current = true;
+        }
+
+        if (mouseLook.current.x !== 0 || mouseLook.current.y !== 0) {
+          const sens = settings.lookSensitivity ?? 1;
+          const k = 0.0025;
+          const mx = (settings.invertLookX ? -mouseLook.current.x : mouseLook.current.x) * k * sens;
+          const my = (settings.invertLookY ? mouseLook.current.y : -mouseLook.current.y) * k * sens;
+          cameraControls.current.rotate(mx, my, true);
+          mouseLook.current.x = 0;
+          mouseLook.current.y = 0;
+        }
+
+        const forwardInput = !isDrone && (keys.current.forward || ecctrlButtons.current.b3 || gamepadForward || joystickL.y > 0.2);
+
+        if (cameraControls.current.currentAction === 0 && forwardInput && bodyForwardSpeed > 0.15) {
+          camera.getWorldDirection(cameraCurrDir.current).projectOnPlane(cameraUp.current).normalize();
+          cameraFinalDir.current.copy(handle.bodyZAxis).projectOnPlane(cameraUp.current).normalize();
+          cameraTurnCrossAxis.current.crossVectors(cameraCurrDir.current, cameraFinalDir.current);
+          let dot = Math.max(-1, Math.min(1, cameraCurrDir.current.dot(cameraFinalDir.current)));
+          if (Math.abs(dot) < 1e-10) dot = 0;
+          const angle = Math.atan2(cameraTurnCrossAxis.current.dot(cameraUp.current), dot);
+          cameraControls.current.rotate(angle * tuning.common.cameraTurnSpeed * 0.28 * delta, 0, true);
+        }
+
+      }
 
       if (isDrone) {
         const stickFwd = -pad.axes.ly;
-        const stickStrafe = settings.invertSteering ? -pad.axes.lx : pad.axes.lx;
+        const stickStrafe = pad.axes.lx;
         const mobile = ecctrlJoystick.current.active ? joystickL : { x: 0, y: 0 };
 
         const pitchForward = keys.current.forward || stickFwd > 0.2 || mobile.y > 0.2;
@@ -892,49 +893,49 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
           });
         }
       }
-      } else if (!isLocal) {
-        // Remote players: snapshot interpolation. We render the avatar at
-        // (now - getInterpDelayMs()) by sampling a buffer of received transforms
-        // and interpolating between the two snapshots that bracket that time.
-        // Deliberately drawing slightly in the past guarantees we always have a
-        // "future" sample to interpolate toward, so motion is smooth under
-        // variable/lossy latency (the standard Valve/Gambetta approach) instead
-        // of lagging toward the single latest packet.
-        const renderTime = performance.now() - getInterpDelayMs();
-        const snap = getInterpolatedTransform(state.id, renderTime);
-        if (snap && snap.pos && Number.isFinite(snap.pos.x)) {
-          const lerpPos = remoteLerp.current;
-          // On the very first sample (or after a gap), snap directly to avoid a
-          // long slide from origin. The buffer handles steady-state smoothing.
-          if (!lerpPos.init) {
-            lerpPos.x = snap.pos.x; lerpPos.y = snap.pos.y; lerpPos.z = snap.pos.z;
-            lerpPos.init = true;
-          }
-          // Debug: how far the rendered pose trails the newest known sample,
-          // plus the configured interpolation delay. Pure measurement.
-          const latest = getLatestTransform(state.id);
-          if (latest && isLocal) {
-            const dx = latest.pos.x - snap.pos.x;
-            const dy = latest.pos.y - snap.pos.y;
-            const dz = latest.pos.z - snap.pos.z;
-            const gap = Math.sqrt(dx * dx + dy * dy + dz * dz);
-            const peer = getPeerDebug(state.id);
-            const lag = getInterpDelayMs() + (peer ? peer.ageMs : 0) * 0 + gap; // ms delay + residual snap gap
-            setRenderLag(lag);
-          }
-          // Rapier traps (wasm "unreachable") on non-finite transforms. Guard.
-          if (Number.isFinite(snap.pos.x) && Number.isFinite(snap.pos.y) && Number.isFinite(snap.pos.z)) {
-            handle.body.setNextKinematicTranslation({ x: snap.pos.x, y: snap.pos.y, z: snap.pos.z });
-            if (snap.rot && Number.isFinite(snap.rot.x) && Number.isFinite(snap.rot.w)) {
-              handle.body.setNextKinematicRotation({ x: snap.rot.x, y: snap.rot.y, z: snap.rot.z, w: snap.rot.w });
-            }
-          } else {
-            console.warn("[RiderController] dropped non-finite remote transform for", state.id);
+    } else if (!isLocal) {
+      // Remote players: snapshot interpolation. We render the avatar at
+      // (now - getInterpDelayMs()) by sampling a buffer of received transforms
+      // and interpolating between the two snapshots that bracket that time.
+      // Deliberately drawing slightly in the past guarantees we always have a
+      // "future" sample to interpolate toward, so motion is smooth under
+      // variable/lossy latency (the standard Valve/Gambetta approach) instead
+      // of lagging toward the single latest packet.
+      const renderTime = performance.now() - getInterpDelayMs();
+      const snap = getInterpolatedTransform(state.id, renderTime);
+      if (snap && snap.pos && Number.isFinite(snap.pos.x)) {
+        const lerpPos = remoteLerp.current;
+        // On the very first sample (or after a gap), snap directly to avoid a
+        // long slide from origin. The buffer handles steady-state smoothing.
+        if (!lerpPos.init) {
+          lerpPos.x = snap.pos.x; lerpPos.y = snap.pos.y; lerpPos.z = snap.pos.z;
+          lerpPos.init = true;
+        }
+        // Debug: how far the rendered pose trails the newest known sample,
+        // plus the configured interpolation delay. Pure measurement.
+        const latest = getLatestTransform(state.id);
+        if (latest && isLocal) {
+          const dx = latest.pos.x - snap.pos.x;
+          const dy = latest.pos.y - snap.pos.y;
+          const dz = latest.pos.z - snap.pos.z;
+          const gap = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          const peer = getPeerDebug(state.id);
+          const lag = getInterpDelayMs() + (peer ? peer.ageMs : 0) * 0 + gap; // ms delay + residual snap gap
+          setRenderLag(lag);
+        }
+        // Rapier traps (wasm "unreachable") on non-finite transforms. Guard.
+        if (Number.isFinite(snap.pos.x) && Number.isFinite(snap.pos.y) && Number.isFinite(snap.pos.z)) {
+          handle.body.setNextKinematicTranslation({ x: snap.pos.x, y: snap.pos.y, z: snap.pos.z });
+          if (snap.rot && Number.isFinite(snap.rot.x) && Number.isFinite(snap.rot.w)) {
+            handle.body.setNextKinematicRotation({ x: snap.rot.x, y: snap.rot.y, z: snap.rot.z, w: snap.rot.w });
           }
         } else {
-          remoteLerp.current.init = false;
+          console.warn("[RiderController] dropped non-finite remote transform for", state.id);
         }
+      } else {
+        remoteLerp.current.init = false;
       }
+    }
 
     if (controls.isPressed("Respawn")) respawn();
   });
@@ -961,10 +962,10 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
   return (
     <group>
       <EcctrlVehicle
-          ref={vehicle}
-          canSleep
-          carConfig={carConfig}
-          droneConfig={droneConfig}
+        ref={vehicle}
+        canSleep
+        carConfig={carConfig}
+        droneConfig={droneConfig}
         enableCustomGravity
         enable={isLocal}
         type={isLocal ? undefined : "kinematicPosition"}
@@ -983,7 +984,7 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
         <EcctrlCameraControls
           ref={cameraControls}
           makeDefault
-          minDistance={2}
+          minDistance={5}
           maxDistance={35}
           minPolarAngle={0.1}
           maxPolarAngle={Math.PI - 0.1}
