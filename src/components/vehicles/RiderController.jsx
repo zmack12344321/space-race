@@ -192,6 +192,7 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
   const pointerLocked = useRef(false);
   const fireHeld = useRef(false);
   const triggerHeld = useRef(false);
+  const zoomHeld = useRef(0);
   const onFireRef = useRef(onFire);
   onFireRef.current = onFire;
   const mouseButtonsConfigured = useRef(false);
@@ -711,16 +712,10 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
           cameraControls.current.rotate(0, (settings.invertLookY ? pad.axes.ry : -pad.axes.ry) * turn, true);
         }
 
-        // D-pad up/down zooms the camera in/out. We drive it exactly like the
-        // scroll wheel does: a one-shot dollyTo() from the LIVE camera distance,
-        // computed only while the button is held. We never re-assert it every
-        // frame (that would fight/clobber the wheel's own dolly). camera-controls
-        // persist the radius natively, so distance survives moveTo()/setUp().
-        // dollyTo(d): larger d = farther away. UP = zoom IN (closer).
-        // D-pad zoom — same dolly() the scroll wheel uses.
-        if (typeof window !== "undefined" && window.__z) { console.log("[Z] up", pad.dpadUp, "down", pad.dpadDown, "keys", Object.keys(pad).filter((k) => k.startsWith("dpad")).join(","), "dist", cameraControls.current.distance); }
-        if (pad.dpadUp) cameraControls.current.dolly(15 * delta, true);
-        if (pad.dpadDown) cameraControls.current.dolly(-15 * delta, true);
+          if (pad.justPressed.dpadUp) zoomHeld.current = 1;
+          if (pad.justPressed.dpadDown) zoomHeld.current = -1;
+          if (pad.justReleased.dpadUp || pad.justReleased.dpadDown) zoomHeld.current = 0;
+          if (zoomHeld.current !== 0) cameraControls.current.dolly(0.7 * zoomHeld.current, false);
 
         if (!mouseButtonsConfigured.current && cameraControls.current) {
           cameraControls.current.mouseButtons.left = -1;

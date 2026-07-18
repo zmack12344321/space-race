@@ -5,7 +5,7 @@ import { useMultiplayerState } from "../../multiplayer/party";
 import { useGamepadRef } from "./gamepadStore";
 
 const panelShell =
-  "controls-font h-full w-[min(92vw,44rem)] min-h-0 flex flex-col overflow-hidden rounded-[2rem] bg-slate-950/92 text-white pointer-events-auto";
+  "controls-font h-full w-full min-h-0 flex flex-col overflow-hidden rounded-[2rem] bg-[rgba(6,10,18,0.55)] text-white pointer-events-auto";
 
 function Slider({ label, value, min, max, step, onChange }) {
   return (
@@ -296,20 +296,28 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
     };
   }, [open, onClose, tab, tabs, gamepadRef]);
 
+  useEffect(() => {
+    if (open) return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && panelRef.current?.contains(active)) {
+      active.blur();
+    }
+  }, [open]);
+
   return (
     <div
       ref={panelRef}
       id={id}
-      aria-hidden={!open}
+      inert={open ? undefined : true}
       className={`pointer-events-auto overflow-hidden rounded-[2rem] border border-white/10 shadow-[0_18px_48px_rgba(0,0,0,0.42)] transition-[height,opacity,transform] duration-300 ease-out ${
-        open ? "h-[min(88vh,46rem)] opacity-100 translate-y-0" : "h-0 opacity-0 -translate-y-3 pointer-events-none"
+        open ? "h-[min(74vh,38rem)] opacity-100 translate-y-0" : "h-0 opacity-0 -translate-y-3 pointer-events-none"
       }`}
     >
       <div className={`${panelShell} origin-top-left`}>
         <div className="flex h-full w-full min-h-0 flex-col overflow-hidden">
-          <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+          <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-white/[0.03] px-4 py-2.5">
             <div className="min-w-0">
-              <h2 className="text-[clamp(2rem,4.6vw,3rem)] font-black tracking-[-0.06em] leading-none">Quick Tuning</h2>
+              <h2 className="text-[clamp(1.7rem,3.8vw,2.5rem)] font-black tracking-[-0.06em] leading-none">Quick Tuning</h2>
               <div className="mt-1 text-[12px] font-semibold uppercase tracking-[0.18em] text-white/55 truncate">
                 {vehicleLabel}
               </div>
@@ -323,8 +331,8 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
             </button>
           </div>
 
-          <div className="grid min-h-0 flex-1 grid-cols-[7.5rem_1fr] gap-3 p-3">
-            <div className="flex max-h-full flex-col gap-2.5 overflow-y-auto pt-1 pr-1" role="tablist" aria-label="Quick tuning sections">
+          <div className="grid min-h-0 flex-1 grid-cols-[6.75rem_1fr] gap-3 p-2.5">
+            <div className="flex max-h-full flex-col gap-2 overflow-y-auto rounded-[1.25rem] bg-white/[0.03] p-2 pt-1 pr-1" role="tablist" aria-label="Quick tuning sections">
                 {tabs.map(([key, label]) => (
                   <button
                     key={key}
@@ -333,7 +341,7 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
                     data-tab={key}
                     aria-selected={tab === key}
                     role="tab"
-                    className={`ui-button flex h-14 w-full items-center justify-center rounded-2xl border px-2.5 py-2 text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/80 ${
+                    className={`ui-button flex h-12 w-full items-center justify-center rounded-2xl border px-2 py-2 text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/80 ${
                       tab === key
                         ? "border-cyan-300/50 bg-cyan-300/18 text-cyan-100"
                         : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
@@ -344,7 +352,7 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
                 ))}
             </div>
 
-            <div className="min-h-0 overflow-y-auto pr-1.5 pt-1 pb-3 game-menu-scroll">
+            <div className="min-h-0 overflow-y-auto rounded-[1.25rem] bg-white/[0.03] p-3 pr-1.5 pt-1 pb-2 game-menu-scroll">
               {tab === "scene" && (
                 <Section title="World" eyebrow="Scene">
                   <div className="grid gap-2.5 sm:grid-cols-2">

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { netDebug, getPeerDebug, getInterpDelayMs, myPlayer, usePlayerState } from "../../multiplayer/party";
+import { netDebug, getPeerDebug, getInterpDelayMs } from "../../multiplayer/party";
 
 // Lightweight netcode instrumentation overlay. Toggle anywhere with backtick (`).
 // Shows real numbers instead of guessing where the delay lives:
@@ -27,20 +27,6 @@ export function NetDebugOverlay() {
     if (span > 0) sendHz = ((sends.length - 1) / span) * 1000;
   }
 
-  // D-pad zoom diagnostic — confirms whether D-pad input reaches the zoom code
-  // and whether dolly() actually moves the camera distance.
-  const me = myPlayer();
-  const cam = me ? usePlayerState(me, "_debug") : null;
-
-  // RAW gamepad dump — shows exactly which button/axis index lights up when
-  // you press the D-pad, so we can map it correctly for your controller.
-  const pads = typeof navigator !== "undefined" && navigator.getGamepads ? navigator.getGamepads() : [];
-  const pad = [...pads].find((p) => p);
-  const rawBtns = pad ? pad.buttons.map((b, i) => (b.pressed ? i : null)).filter((v) => v !== null) : [];
-  const rawAxes = pad
-    ? pad.axes.map((v, i) => (Math.abs(v) > 0.05 ? `${i}:${Number(v).toFixed(2)}` : null)).filter(Boolean).join(" ")
-    : "";
-
   return (
     <div
       style={{
@@ -65,16 +51,7 @@ send Hz:     ${sendHz.toFixed(0)}
 recv Hz:     ${peer ? peer.recvHz.toFixed(0) : "-"}
 peer age:   ${peer ? peer.ageMs.toFixed(0) : "-"} ms
 interp:     ${getInterpDelayMs().toFixed(0)} ms
-render lag: ${netDebug.renderLagMs.toFixed(0)} ms
-
-D-PAD ZOOM
-dpadUp:     ${cam?.dpadUp ? "YES" : "no"}
-dpadDown:   ${cam?.dpadDown ? "YES" : "no"}
- camDist:    ${cam?.camDist != null ? cam.camDist : "-"}
-camMin:     ${cam?.camMin != null ? cam.camMin : "-"}
-camMax:     ${cam?.camMax != null ? cam.camMax : "-"}
-raw btns:   [${rawBtns.join(",")}]
-raw axes:   ${rawAxes || "none"}`}
+render lag: ${netDebug.renderLagMs.toFixed(0)} ms`}
     </div>
   );
 }

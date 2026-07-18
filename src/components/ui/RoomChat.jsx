@@ -28,6 +28,12 @@ export const RoomChat = ({ blocked = false }) => {
         return;
       }
 
+      if (!open && event.code === "Enter" && !event.metaKey && !event.ctrlKey && !event.altKey && !blocked) {
+        event.preventDefault();
+        setOpen(true);
+        return;
+      }
+
       const tag = event.target?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "BUTTON" || event.metaKey || event.ctrlKey || event.altKey) {
         return;
@@ -81,10 +87,9 @@ export const RoomChat = ({ blocked = false }) => {
     prevCountRef.current = nextCount;
   }, [messages, selfId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return;
-    const timeout = setTimeout(() => inputRef.current?.focus(), 0);
-    return () => clearTimeout(timeout);
+    inputRef.current?.focus();
   }, [open]);
 
   useEffect(() => {

@@ -64,7 +64,7 @@ export function Rider({
     <group {...props}>
       <group ref={hoverRef} position={[0, preview ? 0 : -0.38, 0]} scale={[1, 1, 1]}>
         {showDog && (
-          <group name="Dog" position={[0, 0.62, 0]} rotation={[0, 0, 0]} scale={[1, 1, 1]}>
+          <group name="Dog" position={[0, 0.8, 0]} rotation={[0, 0, 0]} scale={[1, 1, 1]}>
             <Dog />
           </group>
         )}
