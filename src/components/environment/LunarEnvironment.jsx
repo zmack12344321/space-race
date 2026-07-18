@@ -7,7 +7,7 @@ import { LunarSky } from "./LunarTerrain";
 import { useGameSettings } from "../ui/gameSettingsStore";
 import { SunLightRig } from "./SunLightRig";
 
-export function LunarEnvironment({ sunAngle: sunAngleProp, skyMode = "blue", starsMode = "lean" } = {}) {
+export function LunarEnvironment({ seed, sunAngle: sunAngleProp, skyMode = "blue", starsMode = "lean" } = {}) {
   const [roomSunAngle] = useMultiplayerState("sunAngle", 0.94);
   const sunAngle = sunAngleProp ?? roomSunAngle;
   const shadowDistance = useGameSettings((state) => state.shadowDistance);
@@ -46,7 +46,7 @@ export function LunarEnvironment({ sunAngle: sunAngleProp, skyMode = "blue", sta
         shadowNormalBias={0.04}
       />
       <group ref={mountainsRef}>
-        <DistantMountains />
+        <DistantMountains seed={seed ?? 1} />
       </group>
       <LunarSky skyMode={skyMode} starsMode={starsMode} />
     </>

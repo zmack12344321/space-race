@@ -1,37 +1,19 @@
+import { Joystick, onPlayerJoin } from "../../multiplayer/party";
+import { useEffect, useState } from "react";
 import * as THREE from "three";
 import { Environment, Gltf, Lightformer } from "@react-three/drei";
 import { CuboidCollider, Physics, RigidBody } from "@react-three/rapier";
-import { useCustomGravity } from "ecctrl/gravity";
-import { Joystick, onPlayerJoin } from "../../multiplayer/party";
-import { useEffect, useRef, useState } from "react";
-import { Vector3 } from "three";
-import { RiderController } from "../vehicles/RiderController";
-import { LaserSystem } from "../vehicles/LaserSystem";
 import { GameArea } from "../environment/GameArea";
 import { Skatepark } from "../environment/Skatepark";
-import { LunarTerrain } from "../environment/LunarTerrain";
-import { LunarRocks } from "../environment/LunarRocks";
-import { LunarEnvironment } from "../environment/LunarEnvironment";
 import { SunLightRig } from "../environment/SunLightRig";
-import { RaceCourse } from "../environment/RaceCourse";
-import { getLunarHeight, getLunarSpawnCenter } from "../../utils/lunarHeightfield";
+import { LunarWorld } from "../environment/LunarWorld";
 import { useMultiplayerState } from "../../multiplayer/party";
-import { useFrame } from "@react-three/fiber";
 import { useAtomValue } from "jotai";
-import { GameMenuOpenAtom } from "../ui/UI";
+import { GameMenuOpenAtom, GameInputFrozenAtom } from "../ui/UI";
 import { useGameSettings } from "../ui/gameSettingsStore";
-
-
-function GravitySetup() {
-  const setGravityField = useCustomGravity((state) => state.setGravityField);
-  const gravity = useRef(new Vector3(0, -9.81, 0));
-
-  useEffect(() => {
-    setGravityField(() => gravity.current);
-  }, [setGravityField]);
-
-  return null;
-}
+import { RiderController } from "../vehicles/RiderController";
+import { LaserSystem } from "../vehicles/LaserSystem";
+import { getLunarHeight } from "../../utils/lunarHeightfield";
 
 // Minimal flat-plane test arena: two players spawn facing each other 10m apart
 // so we can isolate netcode/lag/knockback without the full game world.
@@ -59,7 +41,9 @@ function TestArena({ shadowDistance }) {
 export const Game = ({ level = "lunar", physicsDebug = false, debugMode = false, skyMode = "blue", starsMode = "lean" }) => {
   const [players, setPlayers] = useState([]);
   const paused = useAtomValue(GameMenuOpenAtom);
+  const inputFrozen = useAtomValue(GameInputFrozenAtom);
   const [sunAngle] = useMultiplayerState("sunAngle", 0.3);
+  const [lunarSeed] = useMultiplayerState("lunarSeed", 1337);
   const [raceMode] = useMultiplayerState("raceMode", false);
   const renderDistance = useGameSettings((state) => state.renderDistance);
   const shadowDistance = useGameSettings((state) => state.shadowDistance);
@@ -99,7 +83,19 @@ export const Game = ({ level = "lunar", physicsDebug = false, debugMode = false,
   return (
     <group>
       {level === "lunar" ? (
-        <LunarEnvironment skyMode={skyMode} starsMode={starsMode} />
+        <LunarWorld
+          seed={lunarSeed}
+          sunAngle={sunAngle}
+          skyMode={skyMode}
+          starsMode={starsMode}
+          raceMode={raceMode}
+          renderDistance={renderDistance}
+          shadowDistance={shadowDistance}
+          paused={paused}
+          physicsDebug={physicsDebug}
+          debugMode={debugMode}
+          players={players}
+        />
       ) : (
         <>
           <ambientLight intensity={fillIntensity} color="#7f8bad" />
@@ -126,21 +122,7 @@ export const Game = ({ level = "lunar", physicsDebug = false, debugMode = false,
           />
         </>
       )}
-      <Physics gravity={[0, 0, 0]} debug={physicsDebug} paused={paused}>
-        <GravitySetup />
-        {level === "lunar" && <LunarTerrain visualRadiusBoost={Math.max(0, renderDistance - 9)} />}
-        {level === "lunar" && <LunarRocks clearRadius={raceMode ? 18 : 0} visualRadiusBoost={Math.max(0, renderDistance - 9)} />}
-        {level === "lunar" && <RaceCourse seed={1337} enabled={raceMode} />}
-        {players.map(({ state, controls }) => (
-          <RiderController
-            key={state.id}
-            state={state}
-            controls={controls}
-            getGroundHeight={level === "lunar" ? getLunarHeight : () => 0}
-            testSpawn={level === "test"}
-            debugMode={debugMode}
-          />
-        ))}
+      <Physics key={lunarSeed} gravity={[0, 0, 0]} debug={physicsDebug} paused={paused || inputFrozen}>
         {level === "lunar" ? null : level === "skatepark" ? (
           <Skatepark />
         ) : level === "test" ? (
@@ -153,6 +135,17 @@ export const Game = ({ level = "lunar", physicsDebug = false, debugMode = false,
             <Gltf src="/models/map_road.glb" />
           </>
         )}
+        {level !== "lunar" &&
+          players.map(({ state, controls }) => (
+            <RiderController
+              key={state.id}
+              state={state}
+              controls={controls}
+              getGroundHeight={level === "skatepark" ? () => 0 : level === "test" ? () => 0 : getLunarHeight}
+              testSpawn={level === "test"}
+              debugMode={debugMode}
+            />
+          ))}
         {level !== "lunar" && (
           <RigidBody
             type="fixed"
@@ -162,11 +155,13 @@ export const Game = ({ level = "lunar", physicsDebug = false, debugMode = false,
             name="void"
           >
             <CuboidCollider args={[20, 3, 20]} />
-          </RigidBody>
+            </RigidBody>
         )}
-        <LaserSystem
-          getGroundHeight={level === "lunar" ? getLunarHeight : level === "skatepark" ? () => 0 : undefined}
-        />
+        {level !== "lunar" && (
+          <LaserSystem
+            getGroundHeight={level === "skatepark" ? () => 0 : level === "test" ? () => 0 : getLunarHeight}
+          />
+        )}
       </Physics>
     </group>
   );

@@ -1,13 +1,15 @@
 import { Canvas } from "@react-three/fiber";
 import { useAtom } from "jotai";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { AdaptiveDpr, AdaptiveEvents, PerformanceMonitor, Preload } from "@react-three/drei";
+import { useFrame, useThree } from "@react-three/fiber";
 import { EffectComposer, SMAA } from "@react-three/postprocessing";
 import { Experience } from "./components/core/Experience";
 import { UI } from "./components/ui/UI";
 import { NetDebugOverlay } from "./components/ui/NetDebugOverlay";
 import { PhysicsDebugAtom } from "./components/ui/debugState";
+import { debugMetrics } from "./components/ui/debugMetrics";
 import { useGameSettings } from "./components/ui/gameSettingsStore";
 import { useMultiplayerState } from "./multiplayer/party";
 import { ShaderPreview } from "./components/environment/ShaderPreview";
@@ -70,6 +72,7 @@ function App() {
             <AdaptiveEvents />
             {adaptiveDpr ? <AdaptiveDpr /> : null}
             <Preload all />
+            <DebugMetricsBridge />
             {aaMode === "multisample4" || aaMode === "multisample8" ? <EffectComposer multisampling={multisampling} /> : null}
             {aaMode === "smaa" ? (
               <Suspense fallback={null}>
@@ -93,3 +96,27 @@ function App() {
 }
 
 export default App;
+
+function DebugMetricsBridge() {
+  const gl = useThree((state) => state.gl);
+  const last = useRef(performance.now());
+
+  useFrame(() => {
+    const now = performance.now();
+    const frameMs = Math.max(0, now - last.current);
+    last.current = now;
+    const fps = frameMs > 0 ? 1000 / frameMs : 0;
+    const info = gl.info;
+
+    debugMetrics.fps = fps;
+    debugMetrics.frameMs = frameMs;
+    debugMetrics.drawCalls = info.render.calls;
+    debugMetrics.triangles = info.render.triangles;
+    debugMetrics.lines = info.render.lines;
+    debugMetrics.points = info.render.points;
+    debugMetrics.geometries = info.memory.geometries;
+    debugMetrics.textures = info.memory.textures;
+  });
+
+  return null;
+}

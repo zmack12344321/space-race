@@ -30,6 +30,7 @@ import { useRaceCourseStore } from "../environment/raceCourseStore";
 
 export const NameEditingAtom = atom(false);
 export const GameMenuOpenAtom = atom(false);
+export const GameInputFrozenAtom = atom(false);
 export const InviteOpenAtom = atom(false);
 
 function MenuGlyph({ open }) {
@@ -408,6 +409,7 @@ export const UI = () => {
   const [loadingSlide, setLoadingSlide] = useState(true);
   const [nameEditing, setNameEditing] = useAtom(NameEditingAtom);
   const [menuOpen, setMenuOpen] = useAtom(GameMenuOpenAtom);
+  const [, setGameInputFrozen] = useAtom(GameInputFrozenAtom);
   const [quickTuningOpen, setQuickTuningOpen] = useState(false);
   const [physicsDebug, setPhysicsDebug] = useAtom(PhysicsDebugAtom);
   const [gameReady, setGameReady] = useAtom(GameReadyAtom);
@@ -522,6 +524,11 @@ export const UI = () => {
   }, [gameState, setMenuOpen]);
 
   useEffect(() => {
+    setGameInputFrozen(gameState === "game" && (menuOpen || quickTuningOpen));
+    return () => setGameInputFrozen(false);
+  }, [gameState, menuOpen, quickTuningOpen, setGameInputFrozen]);
+
+  useEffect(() => {
     document.body.classList.add("app-cursor");
     return () => {
       document.body.classList.remove("app-cursor");
@@ -532,6 +539,13 @@ export const UI = () => {
     if (gameState === "game") return;
     if (document.pointerLockElement) document.exitPointerLock();
   }, [gameState]);
+
+  useEffect(() => {
+    if (gameState !== "game") return;
+    if ((menuOpen || quickTuningOpen) && document.pointerLockElement) {
+      document.exitPointerLock();
+    }
+  }, [gameState, menuOpen, quickTuningOpen]);
 
   useEffect(() => {
     if (gameState !== "game" || menuOpen) return;
@@ -558,8 +572,13 @@ export const UI = () => {
           setMenuOpen((value) => !value);
         }
       }
-      if (isTestMode && pad.justPressed.back) {
-        setPhysicsDebug((value) => !value);
+      if (pad.justPressed.back) {
+        if (quickTuningOpen) {
+          setQuickTuningOpen(false);
+        } else {
+          setQuickTuningOpen(true);
+          setMenuOpen(false);
+        }
       }
       raf = requestAnimationFrame(tick);
     };
@@ -570,7 +589,7 @@ export const UI = () => {
       window.removeEventListener("keydown", onKeyDown);
       cancelAnimationFrame(raf);
     };
-  }, [gameState, menuOpen, isTestMode, setMenuOpen, setPhysicsDebug, gamepadRef, quickTuningOpen, setQuickTuningOpen]);
+  }, [gameState, menuOpen, setMenuOpen, gamepadRef, quickTuningOpen, setQuickTuningOpen]);
 
   useEffect(() => {
     if (menuOpen && quickTuningOpen) setQuickTuningOpen(false);
@@ -753,7 +772,7 @@ export const UI = () => {
           />
         </div>
       )}
-      {me && <BoardSelector me={me} menuOpen={menuOpen} />}
+      {me && <BoardSelector me={me} blocked={menuOpen || quickTuningOpen} />}
       {gameState === "game" && !menuOpen && (
         <div className="fixed left-4 top-4 z-40 flex flex-col items-start gap-2">
           <HealthBar />
@@ -1052,7 +1071,7 @@ const VehicleDebugHUD = ({ me }) => {
 
 const cycleIndex = (current, direction, length) => (current + direction + length) % length;
 
-const BoardSelector = ({ me, menuOpen }) => {
+const BoardSelector = ({ me, blocked = false }) => {
   const [vehicle] = usePlayerState(me, "vehicle");
   const [hoveredModel, setHoveredModel] = useState(null);
   const gamepadRef = useGamepadRef();
@@ -1062,7 +1081,7 @@ const BoardSelector = ({ me, menuOpen }) => {
   const currentIndex = Math.max(0, VEHICLE_MODELS.indexOf(vehicle ?? VEHICLE_MODELS[0]));
 
   useEffect(() => {
-    if (menuOpen) return;
+    if (blocked) return;
 
     let raf = 0;
 
@@ -1081,7 +1100,7 @@ const BoardSelector = ({ me, menuOpen }) => {
 
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [currentIndex, menuOpen, me, gamepadRef]);
+  }, [currentIndex, blocked, me, gamepadRef]);
 
   return (
     <div

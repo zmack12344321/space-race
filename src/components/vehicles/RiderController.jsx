@@ -27,7 +27,7 @@ import {
   ECCTRL_VEHICLE_PRESETS,
 } from "./ecctrlVehiclePresets";
 import { ECCTRL_VEHICLE_TUNING_PRESETS, getEcctrlTuningPreset, useEcctrlTuningStore } from "./ecctrlTuningStore";
-import { GameMenuOpenAtom } from "../ui/UI";
+import { GameMenuOpenAtom, GameInputFrozenAtom } from "../ui/UI";
 import { GameReadyAtom } from "../ui/debugState";
 import { useSetAtom } from "jotai";
 import { PlayerNameTag, gameTagProps } from "../environment/PlayerNameTag";
@@ -101,7 +101,7 @@ function CarControllerBody({ car, paused }) {
         steerWheel
         brakeWheel
         position={[car.wheelOffsetX, car.wheelOffsetY, car.wheelOffsetZ]}
-        groundDetection="shapeCast"
+        groundDetection={car.groundDetection ?? "shapeCast"}
         rayShapeR={car.rayShapeR}
         rayShapeH={car.rayShapeH}
         rayLength={car.rayLength}
@@ -116,7 +116,7 @@ function CarControllerBody({ car, paused }) {
         steerWheel
         brakeWheel
         position={[-car.wheelOffsetX, car.wheelOffsetY, car.wheelOffsetZ]}
-        groundDetection="shapeCast"
+        groundDetection={car.groundDetection ?? "shapeCast"}
         rayShapeR={car.rayShapeR}
         rayShapeH={car.rayShapeH}
         rayLength={car.rayLength}
@@ -132,7 +132,7 @@ function CarControllerBody({ car, paused }) {
         brakeWheel
         driveTorqueWeight={rearDriveTorqueWeight}
         position={[car.wheelOffsetX, car.wheelOffsetY, -car.wheelOffsetZ]}
-        groundDetection="shapeCast"
+        groundDetection={car.groundDetection ?? "shapeCast"}
         rayShapeR={car.rayShapeR}
         rayShapeH={car.rayShapeH}
         rayLength={car.rayLength}
@@ -148,7 +148,7 @@ function CarControllerBody({ car, paused }) {
         brakeWheel
         driveTorqueWeight={rearDriveTorqueWeight}
         position={[-car.wheelOffsetX, car.wheelOffsetY, -car.wheelOffsetZ]}
-        groundDetection="shapeCast"
+        groundDetection={car.groundDetection ?? "shapeCast"}
         rayShapeR={car.rayShapeR}
         rayShapeH={car.rayShapeH}
         rayLength={car.rayLength}
@@ -214,6 +214,7 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
   const BOOST_SPEED_MULT = tuning.drone.boostSpeedMult ?? 1.4;
   const BOOST_VERT_MULT = tuning.drone.boostSpeedMult ?? 1.4;
   const menuOpen = useAtomValue(GameMenuOpenAtom);
+  const inputFrozen = useAtomValue(GameInputFrozenAtom);
   const gamepadRef = useGamepadRef();
   const keys = useRef({
     forward: false,
@@ -280,6 +281,7 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
       shiftCooldown: rideTuning.shiftCooldown,
       steerRate: rideTuning.steerRate,
       maxSteerAngle: rideTuning.maxSteerAngle,
+      groundDetection: rideTuning.groundDetection,
       reverseTorqueScale: rideTuning.reverseTorqueScale,
       reverseRPMScale: rideTuning.reverseRPMScale,
     };
@@ -297,6 +299,7 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
     rideTuning.speedMultiplier,
     rideTuning.steerRate,
     rideTuning.maxSteerAngle,
+    rideTuning.groundDetection,
   ]);
 
   const droneConfig = useMemo(() => {
@@ -599,7 +602,7 @@ export const RiderController = ({ state, controls, getGroundHeight, debugMode = 
     if (!handle?.body) return;
 
     const stunned = isLocal && useHealthStore.getState().isStunned(performance.now() / 1000);
-    if (menuOpen || stunned) {
+    if (menuOpen || inputFrozen || stunned) {
       handle.setMovement({
         forward: false,
         backward: false,

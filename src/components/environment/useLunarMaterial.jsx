@@ -9,7 +9,7 @@ const cachedMaterial = new THREE.MeshStandardMaterial({
   envMapIntensity: 0,
 });
 cachedMaterial.normalScale = new THREE.Vector2(3.5, 3.5);
-cachedMaterial.userData = { diffA: null, diffB: null, norA: null, norB: null };
+cachedMaterial.userData = { diffA: null, diffB: null, norA: null, norB: null, skipCSM: true };
 
 cachedMaterial.onBeforeCompile = (shader) => {
   cachedMaterial.userData.shader = shader;

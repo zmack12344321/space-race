@@ -2,7 +2,7 @@ import { useGLTF } from "@react-three/drei";
 import { RigidBody } from "@react-three/rapier";
 import { useFrame, useThree } from "@react-three/fiber";
 import { mergeBufferGeometries } from "three-stdlib";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, startTransition } from "react";
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, startTransition } from "react";
 import * as THREE from "three";
 import { getLunarHeight, getLunarSeed } from "../../utils/lunarHeightfield";
 import { Rock, ROCK_BASE_SCALE } from "./rocks/Rock";
@@ -17,6 +17,11 @@ const PHYSICS_RADIUS = 1; // chunks within this ring get real colliders
 const ROCKS_PER_CHUNK = 4; // deterministic rocks scattered per chunk
 // Capacity per rock type: worst case every rock in view is one type.
 const CAPACITY = (2 * VISUAL_RADIUS + 1) * (2 * VISUAL_RADIUS + 1) * ROCKS_PER_CHUNK;
+const fieldCache = new Map();
+
+export function clearRockFieldCache() {
+  fieldCache.clear();
+}
 
 const ROCK_TYPES = [1, 2, 3, 4, 5, 6, 7];
 const ROCK_PATHS = {
@@ -130,9 +135,23 @@ function computeField(cx, cz, seed, radius = VISUAL_RADIUS, clearRadius = 0) {
   return { far, near };
 }
 
+function fieldKey(cx, cz, seed, radius, clearRadius) {
+  return `${seed}:${cx}:${cz}:${radius}:${clearRadius}`;
+}
+
+function getCachedField(cx, cz, seed, radius, clearRadius) {
+  const key = fieldKey(cx, cz, seed, radius, clearRadius);
+  const cached = fieldCache.get(key);
+  if (cached) return cached;
+  const next = computeField(cx, cz, seed, radius, clearRadius);
+  fieldCache.set(key, next);
+  return next;
+}
+
 export function LunarRocks({ isStatic = false, staticRadius = 2, seed, clearRadius = 0, visualRadiusBoost = 0 }) {
   const camera = useThree((state) => state.camera);
   const cameraWorldPosition = useRef(new THREE.Vector3());
+  const deferredVisualRadiusBoost = useDeferredValue(visualRadiusBoost);
   const [center, setCenter] = useState(() => ({
     x: Math.floor(camera.position.x / CHUNK_SIZE),
     z: Math.floor(camera.position.z / CHUNK_SIZE),
@@ -159,8 +178,8 @@ export function LunarRocks({ isStatic = false, staticRadius = 2, seed, clearRadi
   const { far, near } = useMemo(() => {
     const cx = isStatic ? 0 : center.x;
     const cz = isStatic ? 0 : center.z;
-    return computeField(cx, cz, seed, (isStatic ? staticRadius : VISUAL_RADIUS) + visualRadiusBoost, clearRadius);
-  }, [center, isStatic, seed, clearRadius, staticRadius, visualRadiusBoost]);
+    return getCachedField(cx, cz, seed, (isStatic ? staticRadius : VISUAL_RADIUS) + deferredVisualRadiusBoost, clearRadius);
+  }, [center, isStatic, seed, clearRadius, staticRadius, deferredVisualRadiusBoost]);
 
   // Push far-rock placements into one InstancedMesh per type (1 draw call each).
   useEffect(() => {

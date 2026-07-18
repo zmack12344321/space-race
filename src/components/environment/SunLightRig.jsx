@@ -17,6 +17,7 @@ function getSunDirection(sunAngle, sunDist, minY) {
 function isCSMMaterial(material) {
   return Boolean(
     material &&
+      !material.userData?.skipCSM &&
       (material.isMeshStandardMaterial ||
         material.isMeshPhysicalMaterial ||
         material.isMeshPhongMaterial ||
@@ -44,6 +45,7 @@ export function SunLightRig({
   const csmRef = useRef(null);
   const registeredMaterials = useRef(new WeakSet());
   const scanFrame = useRef(0);
+  const targetShadowDistance = useRef(shadowDistance);
   const sunDirection = useMemo(() => getSunDirection(sunAngle, sunDist, minSunY), [sunAngle, sunDist, minSunY]);
 
   const registerMaterials = (csm) => {
@@ -109,14 +111,18 @@ export function SunLightRig({
   }, [camera, scene, cascades]);
 
   useEffect(() => {
+    targetShadowDistance.current = shadowDistance;
+  }, [shadowDistance]);
+
+  useEffect(() => {
     const csm = csmRef.current;
     if (!csm) return;
 
     csm.lightDirection.copy(sunDirection);
-    csm.maxFar = shadowDistance;
+    csm.maxFar = targetShadowDistance.current;
     csm.lightMargin = lightMargin;
     csm.lightIntensity = intensity;
-    csm.lightFar = shadowDistance * shadowFarMultiplier;
+    csm.lightFar = targetShadowDistance.current * shadowFarMultiplier;
     csm.shadowMapSize = shadowMapSize;
     csm.shadowBias = shadowBias;
     csm.updateFrustums();
@@ -127,15 +133,24 @@ export function SunLightRig({
       light.shadow.bias = shadowBias;
       light.shadow.normalBias = shadowNormalBias;
       light.shadow.camera.near = 1;
-      light.shadow.camera.far = shadowDistance * shadowFarMultiplier;
+      light.shadow.camera.far = targetShadowDistance.current * shadowFarMultiplier;
       light.shadow.mapSize.set(shadowMapSize, shadowMapSize);
       light.shadow.camera.updateProjectionMatrix();
     });
-  }, [color, intensity, shadowBias, shadowDistance, shadowFarMultiplier, shadowMapSize, shadowNormalBias, sunDirection, lightMargin]);
+  }, [color, intensity, shadowBias, shadowFarMultiplier, shadowMapSize, shadowNormalBias, sunDirection, lightMargin]);
 
   useFrame(() => {
     const csm = csmRef.current;
     if (!csm) return;
+
+    const target = targetShadowDistance.current;
+    const delta = target - csm.maxFar;
+    if (Math.abs(delta) > 0.5) {
+      const nextFar = csm.maxFar + delta * 0.12;
+      csm.maxFar = nextFar;
+      csm.lightFar = nextFar * shadowFarMultiplier;
+      csm.updateFrustums();
+    }
 
     if ((scanFrame.current++ % 24) === 0) registerMaterials(csm);
 

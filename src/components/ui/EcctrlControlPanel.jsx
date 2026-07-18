@@ -23,6 +23,7 @@ function Slider({ label, value, min, max, step, onChange }) {
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
+        data-qt-control="true"
         className="game-slider game-slider-compact w-full cursor-pointer"
       />
     </label>
@@ -48,6 +49,7 @@ function ActionButton({ children, onClick, className = "" }) {
     <button
       type="button"
       onClick={onClick}
+      data-qt-control="true"
       className={`ui-button rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-[13px] font-black uppercase tracking-[0.14em] text-white hover:bg-white/10 ${className}`}
     >
       {children}
@@ -62,6 +64,7 @@ function Toggle({ label, hint, value, onChange }) {
       role="switch"
       aria-checked={value}
       onClick={() => onChange(!value)}
+      data-qt-control="true"
       className="control-row flex w-full items-center justify-between gap-3 rounded-[1.25rem] border border-white/[0.08] bg-black/20 px-5 py-4 text-left"
     >
       <span className="flex flex-col">
@@ -85,6 +88,7 @@ function Toggle({ label, hint, value, onChange }) {
 
 export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false, id }) {
   const [tab, setTab] = useState("scene");
+  const [cursorLane, setCursorLane] = useState("tabs");
   const panelRef = useRef(null);
   const gamepadRef = useGamepadRef();
   const tuning = useEcctrlTuningStore((state) => state);
@@ -122,8 +126,29 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
       : "Vehicle";
 
   useEffect(() => {
-    if (open) setTab("scene");
+    if (open) {
+      setTab("scene");
+      setCursorLane("tabs");
+    }
   }, [open]);
+
+  const tabControls = () => Array.from(panelRef.current?.querySelectorAll('[data-qt-tab="true"]') ?? []);
+  const contentControls = () => Array.from(panelRef.current?.querySelectorAll('[data-qt-control="true"]') ?? []);
+
+  const focusAndReveal = (element) => {
+    element?.focus();
+    element?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  };
+
+  const focusCurrentTab = () => {
+    const target = panelRef.current?.querySelector(`[data-tab="${tab}"]`);
+    focusAndReveal(target);
+  };
+
+  const focusFirstContentControl = () => {
+    setCursorLane("content");
+    focusAndReveal(contentControls()[0]);
+  };
 
   const applyPreset = (preset) => {
     if (preset === "car" || preset === "drone") {
@@ -158,24 +183,16 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
     }
   };
 
-  const focusables = () =>
-    Array.from(panelRef.current?.querySelectorAll('button, input[type="range"]') ?? []);
-
-  const focusAndReveal = (element) => {
-    element?.focus();
-    element?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
-  };
-
-  const focusTab = (nextTab) => {
-    setTab(nextTab);
-    requestAnimationFrame(() => {
-      const target = panelRef.current?.querySelector(`[data-tab="${nextTab}"]`);
-      focusAndReveal(target);
-    });
+  const moveTabFocus = (delta) => {
+    const items = tabControls();
+    const active = document.activeElement;
+    const index = items.indexOf(active);
+    const next = items[(index < 0 ? 0 : index + delta + items.length) % items.length];
+    focusAndReveal(next);
   };
 
   const moveFocus = (delta) => {
-    const items = focusables();
+    const items = contentControls();
     const active = document.activeElement;
     const index = items.indexOf(active);
     const next = items[(index < 0 ? 0 : index + delta + items.length) % items.length];
@@ -188,7 +205,9 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
     const step = Number(el.step || 1);
     const min = Number(el.min || 0);
     const max = Number(el.max || 100);
-    const nextValue = Math.min(max, Math.max(min, Number(el.value) + step * delta));
+    const currentValue = Number(el.value);
+    const nextValue = Math.min(max, Math.max(min, currentValue + step * delta));
+    if (nextValue === currentValue) return false;
     el.value = String(nextValue);
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
@@ -199,14 +218,33 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
     if (!open) return;
 
     const id = requestAnimationFrame(() => {
-      const activeTab = panelRef.current?.querySelector(`[data-tab="${tab}"]`);
-      focusAndReveal(activeTab);
+      focusCurrentTab();
     });
 
     const onKeyDown = (event) => {
+      const active = document.activeElement;
+      const isRangeFocused = active instanceof HTMLInputElement && active.type === "range";
       if (event.key === "Escape") {
         event.preventDefault();
         onClose?.();
+        return;
+      }
+      if (cursorLane === "tabs") {
+        if (event.key === "ArrowUp") {
+          event.preventDefault();
+          moveTabFocus(-1);
+          return;
+        }
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          moveTabFocus(1);
+          return;
+        }
+        if (event.key === "ArrowRight" || event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          focusFirstContentControl();
+          return;
+        }
         return;
       }
       if (event.key === "ArrowUp") {
@@ -220,26 +258,25 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
         return;
       }
       if (event.key === "ArrowLeft") {
-        if (nudgeRange(-1)) {
-          event.preventDefault();
-          return;
+        if (isRangeFocused) {
+          if (nudgeRange(-1)) {
+            event.preventDefault();
+            return;
+          }
         }
-        const current = tabs.findIndex(([key]) => key === tab);
-        if (current >= 0) {
-          event.preventDefault();
-          focusTab(tabs[(current - 1 + tabs.length) % tabs.length][0]);
-        }
+        event.preventDefault();
+        setCursorLane("tabs");
+        requestAnimationFrame(focusCurrentTab);
+        return;
       }
       if (event.key === "ArrowRight") {
-        if (nudgeRange(1)) {
+        if (isRangeFocused && nudgeRange(1)) {
           event.preventDefault();
           return;
         }
-        const current = tabs.findIndex(([key]) => key === tab);
-        if (current >= 0) {
-          event.preventDefault();
-          focusTab(tabs[(current + 1) % tabs.length][0]);
-        }
+        event.preventDefault();
+        focusFirstContentControl();
+        return;
       }
     };
 
@@ -248,41 +285,70 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
     let raf = 0;
     const pollGamepad = () => {
       const pad = gamepadRef.current;
-      if (pad.justPressed.start || pad.justPressed.b) {
+      const active = document.activeElement;
+      const isRangeFocused = active instanceof HTMLInputElement && active.type === "range";
+
+      if (pad.justPressed.start) {
         onClose?.();
-      } else if (pad.justPressed.up) {
-        moveFocus(-1);
-      } else if (pad.justPressed.down) {
-        moveFocus(1);
-      } else if (pad.justPressed.left) {
-        if (!nudgeRange(-1)) {
-          const current = tabs.findIndex(([key]) => key === tab);
-          if (current >= 0) focusTab(tabs[(current - 1 + tabs.length) % tabs.length][0]);
-        }
-      } else if (pad.justPressed.right) {
-        if (!nudgeRange(1)) {
-          const current = tabs.findIndex(([key]) => key === tab);
-          if (current >= 0) focusTab(tabs[(current + 1) % tabs.length][0]);
-        }
-      } else if (pad.justPressed.lt) {
-        if (!nudgeRange(-1)) {
-          const current = tabs.findIndex(([key]) => key === tab);
-          if (current >= 0) focusTab(tabs[(current - 1 + tabs.length) % tabs.length][0]);
-        }
-      } else if (pad.justPressed.rt) {
-        if (!nudgeRange(1)) {
-          const current = tabs.findIndex(([key]) => key === tab);
-          if (current >= 0) focusTab(tabs[(current + 1) % tabs.length][0]);
+      } else if (pad.justPressed.b) {
+        if (cursorLane === "tabs") onClose?.();
+        else {
+          setCursorLane("tabs");
+          requestAnimationFrame(focusCurrentTab);
         }
       } else if (pad.justPressed.lb) {
-        const current = tabs.findIndex(([key]) => key === tab);
-        if (current >= 0) focusTab(tabs[(current - 1 + tabs.length) % tabs.length][0]);
+        if (cursorLane === "tabs") moveTabFocus(-1);
+        else {
+          setCursorLane("tabs");
+          requestAnimationFrame(focusCurrentTab);
+        }
       } else if (pad.justPressed.rb) {
-        const current = tabs.findIndex(([key]) => key === tab);
-        if (current >= 0) focusTab(tabs[(current + 1) % tabs.length][0]);
+        if (cursorLane === "tabs") moveTabFocus(1);
+        else focusFirstContentControl();
+      } else if (pad.justPressed.up) {
+        if (cursorLane === "tabs") moveTabFocus(-1);
+        else moveFocus(-1);
+      } else if (pad.justPressed.down) {
+        if (cursorLane === "tabs") moveTabFocus(1);
+        else moveFocus(1);
+      } else if (pad.justPressed.left) {
+        if (cursorLane === "tabs") {
+          moveTabFocus(-1);
+        } else if (isRangeFocused) {
+          if (!nudgeRange(-1)) {
+            setCursorLane("tabs");
+            requestAnimationFrame(focusCurrentTab);
+          }
+        } else {
+          setCursorLane("tabs");
+          requestAnimationFrame(focusCurrentTab);
+        }
+      } else if (pad.justPressed.right) {
+        if (cursorLane === "tabs") {
+          focusFirstContentControl();
+        } else if (isRangeFocused) {
+          nudgeRange(1);
+        } else {
+          focusFirstContentControl();
+        }
+      } else if (pad.justPressed.lt) {
+        if (cursorLane === "tabs") moveTabFocus(-1);
+        else if (isRangeFocused) nudgeRange(-1);
+        else {
+          setCursorLane("tabs");
+          requestAnimationFrame(focusCurrentTab);
+        }
+      } else if (pad.justPressed.rt) {
+        if (cursorLane === "tabs") focusFirstContentControl();
+        else if (isRangeFocused) nudgeRange(1);
+        else focusFirstContentControl();
       } else if (pad.justPressed.a) {
         const active = document.activeElement;
-        if (active instanceof HTMLButtonElement) active.click();
+        if (cursorLane === "tabs") {
+          focusFirstContentControl();
+        } else if (active instanceof HTMLButtonElement) {
+          active.click();
+        }
       }
       raf = requestAnimationFrame(pollGamepad);
     };
@@ -337,8 +403,12 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
                   <button
                     key={key}
                     type="button"
-                    onClick={() => setTab(key)}
+                    onClick={() => {
+                      setTab(key);
+                      setCursorLane("tabs");
+                    }}
                     data-tab={key}
+                    data-qt-tab="true"
                     aria-selected={tab === key}
                     role="tab"
                     className={`ui-button flex h-12 w-full items-center justify-center rounded-2xl border px-2 py-2 text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/80 ${
@@ -352,7 +422,7 @@ export function EcctrlTuningPanel({ open, onClose, vehicleModel, loading = false
                 ))}
             </div>
 
-            <div className="min-h-0 overflow-y-auto rounded-[1.25rem] bg-white/[0.03] p-3 pr-1.5 pt-1 pb-2 game-menu-scroll">
+            <div className="min-h-0 overflow-y-auto rounded-[1.25rem] bg-white/[0.03] p-3 pr-1.5 pt-1 pb-2 game-menu-scroll" data-qt-content="true">
               {tab === "scene" && (
                 <Section title="World" eyebrow="Scene">
                   <div className="grid gap-2.5 sm:grid-cols-2">

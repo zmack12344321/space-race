@@ -1,7 +1,7 @@
 import { PerformanceMonitor } from "@react-three/drei";
-import { MeshCollider, RigidBody } from "@react-three/rapier";
+import { RigidBody } from "@react-three/rapier";
 import { useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, useState, startTransition } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, startTransition } from "react";
 import * as THREE from "three";
 import { getLunarHeight, getLunarSeed } from "../../utils/lunarHeightfield";
 import { NewMoonSky } from "./NewMoonSky";
@@ -12,6 +12,20 @@ import TerrainWorker from "../../workers/terrain.worker.js?worker";
 const CHUNK_SIZE = 64;
 const DEFAULT_VISUAL_RADIUS = 9;
 const PHYSICS_RADIUS = 3;
+
+const visualGeometryCache = new Map();
+const physicsGeometryCache = new Map();
+const pendingVisualGeometry = new Map();
+const pendingPhysicsGeometry = new Map();
+
+export function clearLunarTerrainCaches() {
+  visualGeometryCache.forEach((geometry) => geometry?.dispose?.());
+  physicsGeometryCache.forEach((geometry) => geometry?.dispose?.());
+  visualGeometryCache.clear();
+  physicsGeometryCache.clear();
+  pendingVisualGeometry.clear();
+  pendingPhysicsGeometry.clear();
+}
 
 const workers = [];
 let nextId = 0;
@@ -46,6 +60,77 @@ function generateChunkAsync(type, data) {
   });
 }
 
+function heightOptionsKey(heightOptions) {
+  if (!heightOptions) return "default";
+  try {
+    return JSON.stringify(heightOptions);
+  } catch {
+    return "default";
+  }
+}
+
+function geometryKey(kind, { seed, chunkX, chunkZ, segments, heightOptions }) {
+  return `${kind}:${seed ?? getLunarSeed()}:${chunkX}:${chunkZ}:${segments}:${heightOptionsKey(heightOptions)}`;
+}
+
+function buildGeometry({ positions, normals, indices }, withNormals = true) {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  if (withNormals) geometry.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
+  geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+  return geometry;
+}
+
+function getVisualChunkGeometry(params) {
+  const key = geometryKey("visual", params);
+  const cached = visualGeometryCache.get(key);
+  if (cached) return Promise.resolve(cached);
+  const pending = pendingVisualGeometry.get(key);
+  if (pending) return pending;
+
+  const promise = generateChunkAsync("GENERATE_CHUNK", {
+    CHUNK_SIZE,
+    segments: params.segments,
+    worldX: params.worldX,
+    worldZ: params.worldZ,
+    seed: params.seed ?? getLunarSeed(),
+    heightOptions: params.heightOptions,
+  }).then((buffers) => {
+    const geometry = buildGeometry(buffers, true);
+    visualGeometryCache.set(key, geometry);
+    pendingVisualGeometry.delete(key);
+    return geometry;
+  });
+
+  pendingVisualGeometry.set(key, promise);
+  return promise;
+}
+
+function getPhysicsChunkGeometry(params) {
+  const key = geometryKey("physics", params);
+  const cached = physicsGeometryCache.get(key);
+  if (cached) return Promise.resolve(cached);
+  const pending = pendingPhysicsGeometry.get(key);
+  if (pending) return pending;
+
+  const promise = generateChunkAsync("GENERATE_PHYSICS", {
+    CHUNK_SIZE,
+    segments: params.segments,
+    worldX: params.worldX,
+    worldZ: params.worldZ,
+    seed: params.seed ?? getLunarSeed(),
+    heightOptions: params.heightOptions,
+  }).then((buffers) => {
+    const geometry = buildGeometry(buffers, false);
+    physicsGeometryCache.set(key, geometry);
+    pendingPhysicsGeometry.delete(key);
+    return geometry;
+  });
+
+  pendingPhysicsGeometry.set(key, promise);
+  return promise;
+}
+
 function chunkKey(x, z) {
   return `${x}:${z}`;
 }
@@ -69,87 +154,46 @@ function LunarTerrainChunk({ chunkX, chunkZ, centerX, centerZ, material, quality
   const worldX = chunkX * CHUNK_SIZE;
   const worldZ = chunkZ * CHUNK_SIZE;
 
-  const [visualTerrain, setVisualTerrain] = useState(null);
+  const [visualGeometry, setVisualGeometry] = useState(null);
 
   useEffect(() => {
     let active = true;
-    generateChunkAsync("GENERATE_CHUNK", {
-      CHUNK_SIZE,
-      segments,
-      worldX,
-      worldZ,
-      seed: seed ?? getLunarSeed(),
-      heightOptions,
-    }).then(({ positions, normals, indices }) => {
+    getVisualChunkGeometry({ chunkX, chunkZ, segments, worldX, worldZ, seed, heightOptions }).then((geometry) => {
       if (!active) return;
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
-      geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-      
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.rotation.x = -Math.PI / 2;
-      mesh.position.set(worldX, 0, worldZ);
-      mesh.receiveShadow = true;
-      mesh.frustumCulled = true;
-      setVisualTerrain(mesh);
+      setVisualGeometry(geometry);
     });
     return () => { active = false; };
-  }, [material, segments, worldX, worldZ, seed, heightOptions]);
+  }, [chunkX, chunkZ, segments, worldX, worldZ, seed, heightOptions]);
 
-  const [physicsMesh, setPhysicsMesh] = useState(null);
+  const [physicsGeometry, setPhysicsGeometry] = useState(null);
 
   useEffect(() => {
     if (!hasPhysics) {
-      setPhysicsMesh(null);
+      setPhysicsGeometry(null);
       return;
     }
     let active = true;
-    generateChunkAsync("GENERATE_PHYSICS", {
-      CHUNK_SIZE,
-      segments: 8,
-      worldX,
-      worldZ,
-      seed: seed ?? getLunarSeed(),
-      heightOptions,
-    }).then(({ positions, indices }) => {
+    getPhysicsChunkGeometry({ chunkX, chunkZ, segments: 8, worldX, worldZ, seed, heightOptions }).then((geometry) => {
       if (!active) return;
-      const geom = new THREE.BufferGeometry();
-      geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      geom.setIndex(new THREE.BufferAttribute(indices, 1));
-      
-      const mesh = new THREE.Mesh(geom, new THREE.MeshBasicMaterial({ visible: false }));
-      mesh.rotation.x = -Math.PI / 2;
-      mesh.position.set(worldX, 0, worldZ);
-      setPhysicsMesh(mesh);
+      setPhysicsGeometry(geometry);
     });
     return () => { active = false; };
-  }, [hasPhysics, worldX, worldZ, seed, heightOptions]);
-
-  useEffect(() => {
-    return () => {
-      if (visualTerrain?.geometry) visualTerrain.geometry.dispose();
-      if (physicsMesh?.geometry) physicsMesh.geometry.dispose();
-      if (physicsMesh?.material) physicsMesh.material.dispose();
-    };
-  }, [visualTerrain, physicsMesh]);
+  }, [hasPhysics, chunkX, chunkZ, worldX, worldZ, seed, heightOptions]);
 
   if (hasPhysics) {
     return (
       <group>
-        {visualTerrain && <primitive object={visualTerrain} />}
-        {physicsMesh && (
-          <RigidBody type="fixed" colliders={false}>
-            <MeshCollider type="trimesh">
-              <primitive object={physicsMesh} />
-            </MeshCollider>
+        {visualGeometry && <mesh geometry={visualGeometry} material={material} rotation={[-Math.PI / 2, 0, 0]} position={[worldX, 0, worldZ]} receiveShadow frustumCulled />}
+        {physicsGeometry && (
+          <RigidBody type="fixed" colliders="trimesh" includeInvisible position={[worldX, 0, worldZ]} friction={3}>
+            <mesh geometry={physicsGeometry} rotation={[-Math.PI / 2, 0, 0]} visible={false} />
           </RigidBody>
         )}
       </group>
     );
   }
 
-  return visualTerrain ? <primitive object={visualTerrain} /> : null;
+  return visualGeometry ? <mesh geometry={visualGeometry} material={material} rotation={[-Math.PI / 2, 0, 0]} position={[worldX, 0, worldZ]} receiveShadow frustumCulled /> : null;
 }
 
 export function LunarSky({ skyMode = "blue", starsMode = "lean" } = {}) {
@@ -175,6 +219,7 @@ export function LunarTerrain({ isStatic = false, staticRadius = 1, seed, heightO
   const camera = useThree((state) => state.camera);
   const cameraWorldPosition = useRef(new THREE.Vector3());
   const [quality, setQuality] = useState(1);
+  const deferredVisualRadiusBoost = useDeferredValue(visualRadiusBoost);
   const [center, setCenter] = useState(() => ({
     x: Math.floor(camera.position.x / CHUNK_SIZE),
     z: Math.floor(camera.position.z / CHUNK_SIZE),
@@ -196,16 +241,9 @@ export function LunarTerrain({ isStatic = false, staticRadius = 1, seed, heightO
 
   const material = useLunarMaterial();
 
-  useEffect(
-    () => () => {
-      material.dispose();
-    },
-    [material]
-  );
-
   const chunks = useMemo(() => {
     // If static, only generate a fixed 3x3 grid centered at 0
-    const radius = (isStatic ? staticRadius : (quality < 0.35 ? 3 : DEFAULT_VISUAL_RADIUS)) + visualRadiusBoost;
+    const radius = (isStatic ? staticRadius : (quality < 0.35 ? 3 : DEFAULT_VISUAL_RADIUS)) + deferredVisualRadiusBoost;
     const list = [];
     const cx = isStatic ? 0 : center.x;
     const cz = isStatic ? 0 : center.z;
@@ -215,7 +253,7 @@ export function LunarTerrain({ isStatic = false, staticRadius = 1, seed, heightO
       }
     }
     return list;
-  }, [center, quality, isStatic, staticRadius, visualRadiusBoost]);
+  }, [center, quality, isStatic, staticRadius, deferredVisualRadiusBoost]);
 
   return (
     <>
